@@ -26,7 +26,6 @@ import {
   Settings,
   Tv,
   LogOut,
-  Maximize2,
   Sliders,
   Smartphone,
   Tablet,
@@ -181,9 +180,7 @@ function OperatorConsole({
     testPing,
   } = useWorshipSync(currentAccount, 'operator');
 
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'lyrics' | 'bible' | 'settings'>('lyrics');
-  const [isMobileMonitorOpen, setIsMobileMonitorOpen] = useState(false);
-  const [isTabletDeskVisible, setIsTabletDeskVisible] = useState(true);
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'lyrics' | 'bible' | 'monitor' | 'settings'>('lyrics');
 
   // Keyboard shortcut listeners for live worship operators (Desktop/Studio)
   useEffect(() => {
@@ -339,7 +336,22 @@ function OperatorConsole({
             <span>Dashboard</span>
           </button>
 
-          {/* Tab 4: Settings */}
+          {/* Tab 4: Live Monitor */}
+          <button
+            id="nav-tab-monitor-btn"
+            type="button"
+            onClick={() => setActiveTab('monitor')}
+            className={`flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === 'monitor'
+                ? 'bg-rose-600 text-white shadow'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900'
+            }`}
+          >
+            <Tv className="w-3.5 h-3.5" />
+            <span>Live Monitor</span>
+          </button>
+
+          {/* Tab 5: Settings */}
           <button
             id="nav-tab-settings-btn"
             type="button"
@@ -358,32 +370,6 @@ function OperatorConsole({
 
         {/* Right Info: Device indicator & Actions */}
         <div className="flex items-center gap-2 text-xs shrink-0">
-          {/* Tablet Desk Toggle */}
-          {deviceMode === 'tablet' && (
-            <button
-              type="button"
-              onClick={() => setIsTabletDeskVisible(!isTabletDeskVisible)}
-              className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-slate-900 border border-slate-800 hover:bg-slate-850 text-sky-400 font-semibold text-xs"
-              title="Toggle Live Monitor Desk"
-            >
-              <Tv className="w-3.5 h-3.5" />
-              <span>{isTabletDeskVisible ? 'Hide Monitors' : 'Show Monitors'}</span>
-            </button>
-          )}
-
-          {/* Mobile Live Desk Button */}
-          {deviceMode === 'mobile' && (
-            <button
-              type="button"
-              onClick={() => setIsMobileMonitorOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-950/80 border border-rose-500/50 text-rose-300 font-bold text-xs shadow-sm"
-              title="Open Live Monitor Sheet"
-            >
-              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse" />
-              <span>Live Desk</span>
-            </button>
-          )}
-
           {/* Desktop Keyboard Shortcuts Reminder */}
           {deviceMode === 'desktop' && (
             <span className="hidden xl:inline text-slate-500 text-[11px] font-mono">
@@ -476,104 +462,34 @@ function OperatorConsole({
                 onUpdateMode={handleUpdateMode}
               />
             )}
+
+            {activeTab === 'monitor' && (
+              <div className="h-full overflow-y-auto bg-slate-950 p-4 sm:p-6">
+                <div className="mx-auto w-full max-w-6xl">
+                  <div className="mb-5 flex flex-wrap items-end justify-between gap-3 border-b border-slate-800 pb-4">
+                    <div>
+                      <p className="text-[11px] font-bold uppercase tracking-[0.18em] text-rose-400">Output Control</p>
+                      <h2 className="mt-1 text-xl font-black text-white">Live Monitor</h2>
+                      <p className="mt-1 text-xs text-slate-400">Review projector and OBS outputs before sending them live.</p>
+                    </div>
+                    <div className="rounded-lg border border-slate-800 bg-slate-900 px-3 py-2 text-right">
+                      <p className="text-[10px] uppercase tracking-wider text-slate-500">Account</p>
+                      <p className="font-mono text-xs font-bold text-sky-300">{account}</p>
+                    </div>
+                  </div>
+                  <LiveMonitorDesk
+                    state={state}
+                    account={account}
+                    deviceMode={deviceMode}
+                    onAdvanceNext={handleAdvanceNext}
+                    onUpdateMode={handleUpdateMode}
+                  />
+                </div>
+              </div>
+            )}
           </div>
         </div>
-
-        {/* Right Side Live Program Desk: Rendered persistently on Desktop, or when toggled on Tablet */}
-        {deviceMode === 'desktop' && (
-          <div className="w-full lg:w-[400px] xl:w-[460px] bg-slate-950 flex flex-col p-4 space-y-4 shrink-0 overflow-y-auto border-t lg:border-t-0 border-slate-800">
-            <LiveMonitorDesk
-              state={state}
-              account={account}
-              deviceMode={deviceMode}
-              onAdvanceNext={handleAdvanceNext}
-              onUpdateMode={handleUpdateMode}
-            />
-          </div>
-        )}
-
-        {deviceMode === 'tablet' && isTabletDeskVisible && (
-          <div className="w-full md:w-[360px] lg:w-[400px] bg-slate-950 flex flex-col p-3 space-y-3 shrink-0 overflow-y-auto border-t md:border-t-0 border-slate-800">
-            <LiveMonitorDesk
-              state={state}
-              account={account}
-              deviceMode={deviceMode}
-              onAdvanceNext={handleAdvanceNext}
-              onUpdateMode={handleUpdateMode}
-            />
-          </div>
-        )}
       </div>
-
-      {/* Mobile Floating Sticky Live Monitor Bar (Full screen width for touch operators) */}
-      {deviceMode === 'mobile' && (
-        <div className="bg-slate-900/95 border-t border-slate-800 px-3 py-2 flex items-center justify-between z-30 shadow-2xl backdrop-blur-md shrink-0">
-          <button
-            type="button"
-            onClick={() => setIsMobileMonitorOpen(true)}
-            className="flex-1 flex items-center gap-2 text-left mr-2 min-w-0"
-          >
-            <span className="w-2.5 h-2.5 rounded-full bg-rose-500 shrink-0 animate-pulse" />
-            <div className="min-w-0">
-              <span className="text-xs font-bold text-white block truncate">
-                {state.currentSlide?.reference || state.currentSlide?.title || 'Blank / Ready'}
-              </span>
-              <span className="text-[10px] text-sky-400 font-medium flex items-center gap-1">
-                <Tv className="w-2.5 h-2.5" /> Tap for Live Screens &amp; Quick Controls
-              </span>
-            </div>
-          </button>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            <button
-              type="button"
-              onClick={() => updateState({ isBlackout: !state.isBlackout })}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                state.isBlackout
-                  ? 'bg-rose-600 text-white ring-2 ring-rose-400'
-                  : 'bg-slate-800 text-rose-300'
-              }`}
-            >
-              Black
-            </button>
-            <button
-              type="button"
-              onClick={() => updateState({ isClearText: !state.isClearText })}
-              className={`px-2.5 py-1.5 rounded-lg text-xs font-extrabold transition-all ${
-                state.isClearText
-                  ? 'bg-amber-500 text-slate-950 ring-2 ring-amber-400'
-                  : 'bg-slate-800 text-amber-300'
-              }`}
-            >
-              Clear
-            </button>
-            <button
-              type="button"
-              onClick={() => setIsMobileMonitorOpen(true)}
-              className="px-2.5 py-1.5 rounded-lg bg-sky-600 text-white font-bold text-xs flex items-center gap-1 shadow"
-            >
-              <Maximize2 className="w-3 h-3" />
-              <span>Screens</span>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Mobile Live Program Modal Sheet */}
-      {deviceMode === 'mobile' && isMobileMonitorOpen && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex flex-col justify-end p-2 sm:p-4">
-          <div className="bg-slate-900 border border-slate-700 rounded-3xl p-4 max-h-[90vh] overflow-y-auto shadow-2xl">
-            <LiveMonitorDesk
-              state={state}
-              account={account}
-              deviceMode={deviceMode}
-              onAdvanceNext={handleAdvanceNext}
-              onUpdateMode={handleUpdateMode}
-              onCloseMobileSheet={() => setIsMobileMonitorOpen(false)}
-            />
-          </div>
-        </div>
-      )}
 
       {/* Global Application Footer with App Version, Designer Attribution, Live Users & Total New Users */}
       <AppFooter deviceMode={deviceMode} churchName={account} accountId={account} />
