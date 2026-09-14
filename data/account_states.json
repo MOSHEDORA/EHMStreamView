@@ -1,0 +1,53 @@
+{
+  "mosheravikampadu": {
+    "state": {
+      "account": "mosheravikampadu",
+      "displayMode": "fullscreen",
+      "isBlackout": false,
+      "isClearText": false,
+      "isLogo": false,
+      "currentSlide": {
+        "subtitle": "Pallavi / Chorus (All (4 lines)) · Traditional Telugu Worship",
+        "id": "nee-krupa-leni-nk-v1-full-1789386053182",
+        "primaryText": "నీ కృప లేని క్షణము నే నూహించలేను దేవా\nనీ దయ లేని క్షణము నే జీవించలేను దేవా\nయేసయ్యా... నా యేసయ్యా...\nనీ కృపయే చాలును నా యేసయ్యా",
+        "title": "Nee Krupa Leni Kshaname (నీ కృప లేని క్షణమే)",
+        "secondaryText": "Without Your grace, I cannot imagine a single moment, O God\nWithout Your mercy, I cannot live\nJesus... My Jesus... Your grace is sufficient for me",
+        "type": "lyrics"
+      },
+      "nextSlide": null,
+      "alertText": "",
+      "isAlertVisible": false,
+      "theme": {
+        "lineHeight": 1.35,
+        "fontSize": 44,
+        "textOutline": false,
+        "fontWeight": "bold",
+        "secondaryFontColor": "#cbd5e1",
+        "fontColor": "#ffffff",
+        "lowerThirdAccentColor": "#38bdf8",
+        "backgroundType": "motion_waves",
+        "gradientFrom": "#1e1b4b",
+        "fontFamily": "Montserrat",
+        "showSecondary": false,
+        "lowerThirdOpacity": 85,
+        "bgImageUrl": "",
+        "fontItalic": false,
+        "secondaryFontFamily": "Outfit",
+        "textShadow": true,
+        "textTransform": "none",
+        "lowerThirdPosition": "bottom",
+        "backgroundColor": "#090d16",
+        "textAlign": "center",
+        "secondaryFontSize": 24,
+        "gradientAngle": 135,
+        "gradientTo": "#0f172a",
+        "teluguFontFamily": "Ramabhadra",
+        "lowerThirdStyle": "pill"
+      },
+      "activeTab": "lyrics",
+      "lastUpdated": 1789387283598,
+      "connectedDisplaysCount": 1
+    },
+    "lastUpdated": 1789387283598
+  }
+}

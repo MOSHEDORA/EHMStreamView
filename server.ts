@@ -18,6 +18,55 @@ const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'registered_users.json');
 const STATES_FILE = path.join(DATA_DIR, 'account_states.json');
 const STATS_FILE = path.join(DATA_DIR, 'app_stats.json');
+const TELUGU_BIBLE_DIR = path.join(DATA_DIR, 'tel_new');
+const ENGLISH_BIBLE_FILE = path.join(DATA_DIR, 'bibles', 'en_kjv.json');
+
+const BIBLE_BOOK_NAMES = [
+  'Genesis', 'Exodus', 'Leviticus', 'Numbers', 'Deuteronomy', 'Joshua', 'Judges', 'Ruth',
+  '1 Samuel', '2 Samuel', '1 Kings', '2 Kings', '1 Chronicles', '2 Chronicles', 'Ezra',
+  'Nehemiah', 'Esther', 'Job', 'Psalms', 'Proverbs', 'Ecclesiastes', 'Song of Solomon',
+  'Isaiah', 'Jeremiah', 'Lamentations', 'Ezekiel', 'Daniel', 'Hosea', 'Joel', 'Amos',
+  'Obadiah', 'Jonah', 'Micah', 'Nahum', 'Habakkuk', 'Zephaniah', 'Haggai', 'Zechariah',
+  'Malachi', 'Matthew', 'Mark', 'Luke', 'John', 'Acts', 'Romans', '1 Corinthians',
+  '2 Corinthians', 'Galatians', 'Ephesians', 'Philippians', 'Colossians', '1 Thessalonians',
+  '2 Thessalonians', '1 Timothy', '2 Timothy', 'Titus', 'Philemon', 'Hebrews', 'James',
+  '1 Peter', '2 Peter', '1 John', '2 John', '3 John', 'Jude', 'Revelation',
+];
+
+let englishBibleCache: Array<{ abbrev: string; chapters: string[][] }> | null = null;
+
+function decodeHtmlText(value: string): string {
+  return value
+    .replace(/<[^>]*>/g, '')
+    .replace(/&nbsp;/gi, ' ')
+    .replace(/&amp;/gi, '&')
+    .replace(/&quot;/gi, '"')
+    .replace(/&#39;|&apos;/gi, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function loadEnglishBible() {
+  if (!englishBibleCache) {
+    const source = fs.readFileSync(ENGLISH_BIBLE_FILE, 'utf8').replace(/^\uFEFF/, '');
+    englishBibleCache = JSON.parse(source);
+  }
+  return englishBibleCache;
+}
+
+function loadTeluguChapter(bookNumber: number, chapter: number): Record<number, string> {
+  const filePath = path.join(TELUGU_BIBLE_DIR, String(bookNumber).padStart(2, '0'), `${chapter}.htm`);
+  if (!fs.existsSync(filePath)) return {};
+  const html = fs.readFileSync(filePath, 'utf8');
+  const verses: Record<number, string> = {};
+  const versePattern = /<span class="verse" id="(\d+)">[\s\S]*?<\/span>([\s\S]*?)(?=<br\s*\/?|<\/p>)/gi;
+  for (const match of html.matchAll(versePattern)) {
+    const verseNumber = Number(match[1]);
+    const verseText = decodeHtmlText(match[2]);
+    if (verseText) verses[verseNumber] = verseText;
+  }
+  return verses;
+}
 
 export const APP_VERSION = 'v2.6.4';
 export const APP_DESIGNER = 'Designed by Moshe Dora from EHM, Kakinada';
@@ -274,6 +323,41 @@ function updateAccountState(account: string, updates: Record<string, any>) {
 // HTTP API routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+app.get('/api/bible/:book/:chapter/:verse', (req, res) => {
+  const bookNumber = BIBLE_BOOK_NAMES.findIndex(
+    (book) => book.toLowerCase() === decodeURIComponent(req.params.book).toLowerCase(),
+  ) + 1;
+  const chapter = Number(req.params.chapter);
+  const verse = Number(req.params.verse);
+
+  if (!bookNumber || !Number.isInteger(chapter) || !Number.isInteger(verse) || chapter < 1 || verse < 1) {
+    return res.status(400).json({ error: 'Invalid Bible reference.' });
+  }
+
+  try {
+    const englishBook = loadEnglishBible()[bookNumber - 1];
+    const teluguVerse = loadTeluguChapter(bookNumber, chapter)[verse];
+    const englishVerse = englishBook?.chapters?.[chapter - 1]?.[verse - 1];
+    if (!teluguVerse && !englishVerse) {
+      return res.status(404).json({ error: 'Bible verse not found.' });
+    }
+
+    return res.json({
+      reference: `${BIBLE_BOOK_NAMES[bookNumber - 1]} ${chapter}:${verse}`,
+      book: BIBLE_BOOK_NAMES[bookNumber - 1],
+      chapter,
+      verse,
+      translations: {
+        'en-kjv': englishVerse || '',
+        'te-sv': teluguVerse || '',
+      },
+    });
+  } catch (error) {
+    console.error('Failed to load Bible verse:', error);
+    return res.status(500).json({ error: 'Bible data could not be loaded.' });
+  }
 });
 
 // Analytics & Footer Statistics: App Version, Designer, Live Users & Cumulative New Users

@@ -46,6 +46,7 @@ export function useWorshipSync(
   const [pingLatency, setPingLatency] = useState<number | null>(null);
 
   const relayRef = useRef<LiveSyncRelay | null>(null);
+  const lastAppliedStateRef = useRef(0);
 
   // Initialize or reconfigure LiveSyncRelay when account or clientType changes
   useEffect(() => {
@@ -53,11 +54,20 @@ export function useWorshipSync(
       account,
       clientType,
       onStateReceived: (incomingState) => {
-        setState((prev) => ({
-          ...prev,
-          ...incomingState,
-          account,
-        }));
+        setState((prev) => {
+          const incomingTimestamp = Number(incomingState?.lastUpdated || 0);
+          if (incomingTimestamp && incomingTimestamp < lastAppliedStateRef.current) {
+            return prev;
+          }
+          if (incomingTimestamp) {
+            lastAppliedStateRef.current = incomingTimestamp;
+          }
+          const nextState = { ...prev, ...incomingState, account };
+          try {
+            localStorage.setItem(`worship_state_${account}`, JSON.stringify(nextState));
+          } catch (e) {}
+          return nextState;
+        });
       },
       onCountUpdated: (count, devices) => {
         setConnectedCount(count);
@@ -83,13 +93,22 @@ export function useWorshipSync(
   // Handle mobile wake up, tab switching, and network re-connection
   useEffect(() => {
     const handleReactivation = () => {
-      if (document.visibilityState === 'visible' || navigator.onLine) {
+      if (document.visibilityState === 'visible' && navigator.onLine) {
         // Attempt HTTP fetch if available
         fetch(`/api/state/${encodeURIComponent(account)}`)
           .then((res) => res.json())
           .then((data) => {
             if (data && data.state) {
-              setState((prev) => ({ ...prev, ...data.state, account }));
+              setState((prev) => {
+                const incomingTimestamp = Number(data.state.lastUpdated || 0);
+                if (incomingTimestamp && incomingTimestamp < lastAppliedStateRef.current) {
+                  return prev;
+                }
+                if (incomingTimestamp) {
+                  lastAppliedStateRef.current = incomingTimestamp;
+                }
+                return { ...prev, ...data.state, account };
+              });
             }
           })
           .catch(() => {});
@@ -158,6 +177,7 @@ export function useWorshipSync(
           account,
           lastUpdated: Date.now(),
         };
+        lastAppliedStateRef.current = nextState.lastUpdated;
 
         try {
           localStorage.setItem(`worship_state_${account}`, JSON.stringify(nextState));

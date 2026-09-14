@@ -51,6 +51,7 @@ export const BibleTab: React.FC<BibleTabProps> = ({
   // 2. Direct Search / Fast Reference Input (BibleShow & VerseVIEW quick lookup)
   const [quickInput, setQuickInput] = useState<string>('John 3:16');
   const [resolvedPreview, setResolvedPreview] = useState<VerseItem | null>(null);
+  const [loadedVerse, setLoadedVerse] = useState<VerseItem | null>(null);
 
   // 3. VerseVIEW / BibleShow 3-Step Click Navigator
   const [testamentFilter, setTestamentFilter] = useState<'ALL' | 'OT' | 'NT'>('ALL');
@@ -110,9 +111,39 @@ export const BibleTab: React.FC<BibleTabProps> = ({
     }
   }, [quickInput]);
 
+  useEffect(() => {
+    let cancelled = false;
+    const loadVerse = async () => {
+      setLoadedVerse(null);
+      try {
+        const response = await fetch(
+          `/api/bible/${encodeURIComponent(selectedBook)}/${selectedChapter}/${selectedVerse}`,
+        );
+        if (!response.ok) return;
+        const verse = await response.json();
+        if (!cancelled) {
+          setLoadedVerse({
+            reference: verse.reference,
+            book: verse.book,
+            chapter: verse.chapter,
+            verse: verse.verse,
+            translations: verse.translations,
+          });
+        }
+      } catch {
+        // Keep the local fallback available when the API is unavailable.
+      }
+    };
+    void loadVerse();
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedBook, selectedChapter, selectedVerse]);
+
   // When 3-step selector values change, update active preview
   const activeVerseItem: VerseItem = useMemo(() => {
     const currentRef = `${selectedBook} ${selectedChapter}:${selectedVerse}`;
+    if (loadedVerse) return loadedVerse;
     // Check if in database
     const inDb = POPULAR_VERSES.find(
       (v) =>
@@ -143,7 +174,7 @@ export const BibleTab: React.FC<BibleTabProps> = ({
         'es-rv': fallbackSpanish,
       },
     };
-  }, [selectedBook, selectedChapter, selectedVerse]);
+  }, [loadedVerse, selectedBook, selectedChapter, selectedVerse]);
 
   // Helper to build SlideContent
   const createSlide = (item: VerseItem): SlideContent => {
