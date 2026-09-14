@@ -24,7 +24,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { AppFooter } from './AppFooter';
-import { signInWithEmail, registerWithEmail } from '../services/firebase';
+import { getEmailAuthErrorMessage, signInWithEmail, registerWithEmail } from '../services/firebase';
 
 interface LoginPageProps {
   onLogin: (session: UserSession) => void;
@@ -97,7 +97,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         onLogin(session);
       }, 350);
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to sign in. Please verify your credentials.');
+      setErrorMsg(getEmailAuthErrorMessage(err, 'sign in'));
       setIsSubmitting(false);
     }
   };
@@ -127,7 +127,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         onLogin(session);
       }, 400);
     } catch (err: any) {
-      setErrorMsg('An unexpected error occurred during registration. Please try again.');
+      setErrorMsg(getEmailAuthErrorMessage(err, 'register'));
       setIsSubmitting(false);
     }
   };

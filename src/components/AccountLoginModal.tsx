@@ -4,6 +4,7 @@ import { UserSession } from '../types';
 import {
   signInWithEmail,
   registerWithEmail,
+  getEmailAuthErrorMessage,
 } from '../services/firebase';
 import {
   Church,
@@ -69,7 +70,7 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
       onLogin(session);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to sign in.');
+      setErrorMsg(getEmailAuthErrorMessage(err, 'sign in'));
       setIsSubmitting(false);
     }
   };
@@ -93,7 +94,7 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
       onLogin(session);
       onClose();
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Failed to register.');
+      setErrorMsg(getEmailAuthErrorMessage(err, 'register'));
       setIsSubmitting(false);
     }
   };

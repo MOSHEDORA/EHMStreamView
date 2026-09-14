@@ -37,6 +37,23 @@ const firebaseConfig = {
 export const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth: Auth = getAuth(app);
 
+export function getEmailAuthErrorMessage(error: any, action: 'sign in' | 'register'): string {
+  const errorMessage = String(error?.message || '').toUpperCase();
+  if (error?.code === 'auth/operation-not-allowed' || errorMessage.includes('PASSWORD_LOGIN_DISABLED')) {
+    return `Email/password ${action} is disabled for this Firebase project. Enable Email/Password in Firebase Console > Authentication > Sign-in method.`;
+  }
+  if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password') {
+    return 'The email or password is incorrect.';
+  }
+  if (error?.code === 'auth/email-already-in-use') {
+    return 'This email is already registered. Please sign in instead.';
+  }
+  if (error?.code === 'auth/weak-password') {
+    return 'Password must contain at least 6 characters.';
+  }
+  return error?.message || `Failed to ${action}.`;
+}
+
 // Use custom database ID if provisioned, or default
 export const db: Firestore = firebaseConfigData.firestoreDatabaseId
   ? getFirestore(app, firebaseConfigData.firestoreDatabaseId)
@@ -91,19 +108,8 @@ export interface UserProfileRecord {
  * Sign In with Email & Password
  */
 export async function signInWithEmail(email: string, pass: string, desiredAccount?: string): Promise<UserSession> {
-  let user: User;
-  try {
-    const res = await signInWithEmailAndPassword(auth, email, pass);
-    user = res.user;
-  } catch (err: any) {
-    if (err.code === 'auth/user-not-found' || err.code === 'auth/invalid-credential') {
-      // Auto register for convenient church team onboarding
-      const res = await createUserWithEmailAndPassword(auth, email, pass);
-      user = res.user;
-    } else {
-      throw err;
-    }
-  }
+  const res = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), pass);
+  const user = res.user;
 
   const defaultAcc = desiredAccount || (user.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') : 'worship-main');
   const userRef = doc(db, 'users', user.uid);
