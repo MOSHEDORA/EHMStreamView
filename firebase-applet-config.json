@@ -1,12 +1,10 @@
 {
-  "projectId": "gen-lang-client-0184777023",
-  "appId": "1:62497000071:web:9c9f43e17e8ee260880622",
-  "apiKey": "AIzaSyCtoSojjFoDKqODR37Ngr9bLZP0hBHpUCE",
-  "authDomain": "gen-lang-client-0184777023.firebaseapp.com",
-  "firestoreDatabaseId": "ai-studio-worshipprojectio-55a820be-e7cd-4add-bc06-329796b1d1e8",
-  "storageBucket": "gen-lang-client-0184777023.firebasestorage.app",
-  "messagingSenderId": "62497000071",
-  "measurementId": "",
-  "oAuthClientId": "62497000071-nsl2h4nksnu8niqb70ar50l40vi7uli4.apps.googleusercontent.com",
+  "projectId": "ehmstreamview",
+  "appId": "1:1055506500713:web:3f28a7947e7d0268e626f8",
+  "apiKey": "AIzaSyDFMKMNjNx-dA7mfYu46bRFEBDSEiRkEss",
+  "authDomain": "ehmstreamview.firebaseapp.com",
+  "storageBucket": "ehmstreamview.firebasestorage.app",
+  "messagingSenderId": "1055506500713",
+  "measurementId": "G-LQEHWC9L3Z",
   "recaptchaSiteKey": ""
 }

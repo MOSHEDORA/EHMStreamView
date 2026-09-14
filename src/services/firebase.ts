@@ -55,8 +55,12 @@ export function getEmailAuthErrorMessage(error: any, action: 'sign in' | 'regist
 }
 
 // Use custom database ID if provisioned, or default
-export const db: Firestore = firebaseConfigData.firestoreDatabaseId
-  ? getFirestore(app, firebaseConfigData.firestoreDatabaseId)
+const firestoreDatabaseId = (firebaseConfigData as typeof firebaseConfigData & {
+  firestoreDatabaseId?: string;
+}).firestoreDatabaseId;
+
+export const db: Firestore = firestoreDatabaseId
+  ? getFirestore(app, firestoreDatabaseId)
   : getFirestore(app);
 
 /**
