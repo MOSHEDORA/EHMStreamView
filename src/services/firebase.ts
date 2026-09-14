@@ -146,25 +146,30 @@ export async function signInWithEmail(email: string, pass: string, desiredAccoun
 
   const defaultAcc = desiredAccount || (user.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') : 'worship-main');
   const userRef = doc(db, 'users', user.uid);
-  const snap = await withFirebaseTimeout(getDoc(userRef), 'User profile loading');
-
   let accountName = defaultAcc;
   let role = 'operator';
-  let churchName = 'Grace Community Church';
+  let churchName = `${user.displayName || user.email?.split('@')[0] || 'Worship'} Ministry`;
 
-  if (snap.exists()) {
-    const p = snap.data() as UserProfileRecord;
-    accountName = desiredAccount || p.accountName || defaultAcc;
-    role = p.role || 'operator';
-  } else {
-    await withFirebaseTimeout(setDoc(userRef, {
-      uid: user.uid,
-      email: user.email || '',
-      displayName: user.email ? user.email.split('@')[0] : 'Operator',
-      accountName,
-      role,
-      updatedAt: new Date().toISOString(),
-    }), 'User profile creation');
+  // Auth is sufficient to sign in. Firestore profile data enriches the session
+  // when available, but an unavailable database must not block the operator.
+  try {
+    const snap = await withFirebaseTimeout(getDoc(userRef), 'User profile loading');
+    if (snap.exists()) {
+      const p = snap.data() as UserProfileRecord;
+      accountName = desiredAccount || p.accountName || defaultAcc;
+      role = p.role || 'operator';
+    } else {
+      await withFirebaseTimeout(setDoc(userRef, {
+        uid: user.uid,
+        email: user.email || '',
+        displayName: user.displayName || user.email?.split('@')[0] || 'Operator',
+        accountName,
+        role,
+        updatedAt: new Date().toISOString(),
+      }), 'User profile creation');
+    }
+  } catch (profileError) {
+    console.warn('Firestore profile unavailable; continuing with Firebase Auth session:', profileError);
   }
 
   return {
@@ -208,31 +213,35 @@ export async function registerWithEmail(
   );
   const user = result.user;
 
-  await withFirebaseTimeout(updateProfile(user, { displayName: name.trim() }), 'Profile update');
-  await withFirebaseTimeout(setDoc(
-    doc(db, 'users', user.uid),
-    {
-      uid: user.uid,
-      email: cleanEmail,
-      displayName: name.trim(),
-      accountName,
-      role,
-      updatedAt: new Date().toISOString(),
-    },
-    { merge: true }
-  ), 'User profile creation');
-  await withFirebaseTimeout(setDoc(
-    doc(db, 'accounts', accountName),
-    {
-      id: accountName,
-      name: name.trim(),
-      churchName: churchName.trim(),
-      leader: name.trim(),
-      updatedAt: new Date().toISOString(),
-      createdBy: user.uid,
-    },
-    { merge: true }
-  ), 'Church account creation');
+  try {
+    await withFirebaseTimeout(updateProfile(user, { displayName: name.trim() }), 'Profile update');
+    await withFirebaseTimeout(setDoc(
+      doc(db, 'users', user.uid),
+      {
+        uid: user.uid,
+        email: cleanEmail,
+        displayName: name.trim(),
+        accountName,
+        role,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    ), 'User profile creation');
+    await withFirebaseTimeout(setDoc(
+      doc(db, 'accounts', accountName),
+      {
+        id: accountName,
+        name: name.trim(),
+        churchName: churchName.trim(),
+        leader: name.trim(),
+        updatedAt: new Date().toISOString(),
+        createdBy: user.uid,
+      },
+      { merge: true }
+    ), 'Church account creation');
+  } catch (profileError) {
+    console.warn('Firebase Auth account created, but Firestore profile sync is unavailable:', profileError);
+  }
 
   return {
     accountName,
