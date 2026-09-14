@@ -33,6 +33,7 @@ import {
   Sliders,
 } from 'lucide-react';
 import { AppFooter } from './AppFooter';
+import { signInWithGoogle } from '../services/firebase';
 
 interface LoginPageProps {
   onLogin: (session: UserSession) => void;
@@ -254,6 +255,33 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   };
 
+  const handleGoogleAuth = async () => {
+    setErrorMsg('');
+    setErrorType(null);
+    setSuccessMsg('');
+    setIsSubmitting(true);
+
+    try {
+      const { session } = await signInWithGoogle();
+      localStorage.setItem('worship_user_session', JSON.stringify(session));
+      setSuccessMsg(
+        authMode === 'register'
+          ? 'Google account created. Connecting sanctuary session...'
+          : 'Signed in with Google. Connecting sanctuary session...'
+      );
+      setTimeout(() => onLogin(session), 350);
+    } catch (err: any) {
+      if (err?.code === 'auth/popup-closed-by-user') {
+        setErrorMsg('Google sign-in was cancelled. Please try again.');
+      } else if (err?.code === 'auth/operation-not-allowed') {
+        setErrorMsg('Google sign-in is not enabled in Firebase yet. Enable the Google provider in Firebase Authentication.');
+      } else {
+        setErrorMsg(err?.message || 'Google authentication failed. Please try again.');
+      }
+      setIsSubmitting(false);
+    }
+  };
+
   const handleQuickFillAccount = (acc: RegisteredUser) => {
     setLoginEmail(acc.email);
     if (acc.password) {
@@ -434,6 +462,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             {/* 1. LOGIN FORM */}
             {authMode === 'login' ? (
               <form onSubmit={handleSignInSubmit} className="space-y-4">
+                <button
+                  type="button"
+                  onClick={handleGoogleAuth}
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all"
+                >
+                  <span className="text-base font-black">G</span>
+                  <span>Continue with Google</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <div className="h-px bg-slate-800 flex-1" />
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">or use email</span>
+                  <div className="h-px bg-slate-800 flex-1" />
+                </div>
+
                 {/* Email Address */}
                 <div>
                   <label
@@ -557,6 +601,22 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             ) : (
               /* 2. REGISTER FORM */
               <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
+                <button
+                  type="button"
+                  onClick={handleGoogleAuth}
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all"
+                >
+                  <span className="text-base font-black">G</span>
+                  <span>Sign up with Google</span>
+                </button>
+
+                <div className="flex items-center gap-2">
+                  <div className="h-px bg-slate-800 flex-1" />
+                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">or register with email</span>
+                  <div className="h-px bg-slate-800 flex-1" />
+                </div>
+
                 {/* Full Name */}
                 <div>
                   <label

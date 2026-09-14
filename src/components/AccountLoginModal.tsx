@@ -426,6 +426,24 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
         ) : (
           /* 2. Register Form */
           <form onSubmit={handleRegisterSubmit} className="space-y-3">
+            <button
+              type="button"
+              onClick={handleGoogleSignIn}
+              disabled={isSubmitting}
+              className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-900 font-bold text-xs flex items-center justify-center gap-2.5 shadow-md transition-all"
+            >
+              <span className="text-base font-black">G</span>
+              <span>Sign up with Google (Firebase)</span>
+            </button>
+
+            <div className="flex items-center gap-2 py-0.5">
+              <div className="h-px bg-slate-800 flex-1" />
+              <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">
+                or register with credentials
+              </span>
+              <div className="h-px bg-slate-800 flex-1" />
+            </div>
+
             <div>
               <label className="block text-xs font-bold text-slate-300 mb-1">
                 Operator Name *
