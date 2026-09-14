@@ -408,7 +408,7 @@ export async function trackFirestoreUserVisit(visitorId: string): Promise<number
 
 export async function updateFirestoreLivePresence(
   sessionId: string,
-  extra?: { deviceMode?: string; churchName?: string }
+  extra?: { deviceMode?: string; churchName?: string; accountId?: string }
 ): Promise<void> {
   if (!sessionId) return;
   try {
@@ -420,6 +420,7 @@ export async function updateFirestoreLivePresence(
         lastSeen: Date.now(),
         deviceMode: extra?.deviceMode || 'desktop',
         churchName: extra?.churchName || 'General Sanctuary',
+        accountId: extra?.accountId || '',
       },
       { merge: true }
     );
@@ -437,26 +438,16 @@ export async function removeFirestoreLivePresence(sessionId: string): Promise<vo
 }
 
 export function subscribeToFirestoreStats(
+  accountId: string,
   onStatsUpdate: (data: { totalUsersUsed?: number; totalLiveUsers?: number }) => void
 ): Unsubscribe {
-  const statsDocRef = doc(db, 'stats', 'global');
+  // Firebase app user profiles are stored under /users by both email and Google sign-in.
+  const usersColRef = collection(db, 'users');
   const presenceColRef = collection(db, 'stats', 'global', 'presence');
 
-  let currentUsersUsed = 1248;
-
-  const unsubStats = onSnapshot(
-    statsDocRef,
-    (docSnap) => {
-      if (docSnap.exists()) {
-        const data = docSnap.data();
-        if (typeof data.totalUsersUsed === 'number') {
-          currentUsersUsed = data.totalUsersUsed;
-          onStatsUpdate({ totalUsersUsed: currentUsersUsed });
-        }
-      }
-    },
-    () => {}
-  );
+  const unsubUsers = onSnapshot(usersColRef, (snapshot) => {
+    onStatsUpdate({ totalUsersUsed: snapshot.size });
+  }, () => {});
 
   const unsubPresence = onSnapshot(
     presenceColRef,
@@ -465,19 +456,24 @@ export function subscribeToFirestoreStats(
       let liveCount = 0;
       snapshot.forEach((docItem) => {
         const data = docItem.data();
-        if (data && data.lastSeen && now - data.lastSeen < 60000) {
+        if (
+          data &&
+          data.accountId === accountId &&
+          data.lastSeen &&
+          now - data.lastSeen < 60000
+        ) {
           liveCount++;
         }
       });
       onStatsUpdate({
-        totalLiveUsers: Math.max(1, liveCount),
+        totalLiveUsers: liveCount,
       });
     },
     () => {}
   );
 
   return () => {
-    unsubStats();
+    unsubUsers();
     unsubPresence();
   };
 }

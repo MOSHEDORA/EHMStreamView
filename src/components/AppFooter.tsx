@@ -16,6 +16,7 @@ import {
 interface AppFooterProps {
   deviceMode?: string;
   churchName?: string;
+  accountId?: string;
   variant?: 'standard' | 'compact';
   className?: string;
 }
@@ -23,10 +24,11 @@ interface AppFooterProps {
 export const AppFooter: React.FC<AppFooterProps> = ({
   deviceMode = 'desktop',
   churchName,
+  accountId,
   variant = 'standard',
   className = '',
 }) => {
-  const stats = useAppStats({ deviceMode, churchName });
+  const stats = useAppStats({ deviceMode, churchName, accountId });
   const [showDetailsModal, setShowDetailsModal] = useState(false);
 
   return (

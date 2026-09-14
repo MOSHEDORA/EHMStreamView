@@ -1,5 +1,10 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { WORSHIP_SONGS } from '../data/lyricsData';
+import {
+  loadAccountSongsFromFirestore,
+  saveSongToFirestore,
+  subscribeToAccountSongs,
+} from '../services/firebase';
 import { Song, SongSection, SlideContent, WorshipState } from '../types';
 import { isTeluguText } from '../utils/telugu';
 import {
@@ -41,18 +46,21 @@ export interface SeparatedSlideItem {
 }
 
 interface LyricsTabProps {
+  account: string;
   state: WorshipState;
   onGoLive: (slide: SlideContent, mode?: 'fullscreen' | 'lowerthird') => void;
   onSetNext: (slide: SlideContent) => void;
 }
 
 export const LyricsTab: React.FC<LyricsTabProps> = ({
+  account,
   state,
   onGoLive,
   onSetNext,
 }) => {
+  const customSongsStorageKey = `worship_custom_songs_${account}`;
   const [songs, setSongs] = useState<Song[]>(() => {
-    const saved = localStorage.getItem('worship_custom_songs');
+    const saved = localStorage.getItem(customSongsStorageKey) || localStorage.getItem('worship_custom_songs');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
@@ -63,6 +71,33 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
     }
     return WORSHIP_SONGS;
   });
+
+  useEffect(() => {
+    let cancelled = false;
+    const customSongs = songs.filter((song) => song.id.startsWith('custom-song-'));
+
+    const unsubscribe = subscribeToAccountSongs(account, (remoteSongs) => {
+      if (cancelled) return;
+      setSongs([...WORSHIP_SONGS, ...remoteSongs]);
+    });
+
+    loadAccountSongsFromFirestore(account)
+      .then((remoteSongs) => {
+        if (cancelled || remoteSongs.length === 0) return;
+        setSongs([...WORSHIP_SONGS, ...remoteSongs]);
+      })
+      .catch(() => {});
+
+    // Migrate songs created before account-level cloud sync was enabled.
+    customSongs.forEach((song) => {
+      saveSongToFirestore(account, song).catch(() => {});
+    });
+
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, [account]);
 
   const [selectedSongId, setSelectedSongId] = useState<string>(songs[0]?.id || 'way-maker');
   const [searchQuery, setSearchQuery] = useState<string>('');
@@ -417,7 +452,8 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
       setSongs(updated);
       setSelectedSongId(editingSongId);
       const customList = updated.filter((s) => s.id.startsWith('custom-song-'));
-      localStorage.setItem('worship_custom_songs', JSON.stringify(customList));
+      localStorage.setItem(customSongsStorageKey, JSON.stringify(customList));
+      saveSongToFirestore(account, updated.find((song) => song.id === editingSongId)!).catch(() => {});
     } else {
       const created: Song = {
         id: `custom-song-${Date.now()}`,
@@ -432,7 +468,8 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
       setSelectedSongId(created.id);
 
       const customList = updated.filter((s) => s.id.startsWith('custom-song-'));
-      localStorage.setItem('worship_custom_songs', JSON.stringify(customList));
+      localStorage.setItem(customSongsStorageKey, JSON.stringify(customList));
+      saveSongToFirestore(account, created).catch(() => {});
     }
 
     // Reset & close modal

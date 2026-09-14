@@ -447,6 +447,7 @@ function OperatorConsole({
 
             {activeTab === 'lyrics' && (
               <LyricsTab
+                account={account}
                 state={state}
                 onGoLive={handleGoLive}
                 onSetNext={handleSetNext}
@@ -576,7 +577,7 @@ function OperatorConsole({
       )}
 
       {/* Global Application Footer with App Version, Designer Attribution, Live Users & Total New Users */}
-      <AppFooter deviceMode={deviceMode} churchName={account} />
+      <AppFooter deviceMode={deviceMode} churchName={account} accountId={account} />
     </div>
   );
 }

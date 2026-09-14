@@ -4,6 +4,10 @@
   "outputDirectory": "dist",
   "rewrites": [
     {
+      "source": "/api/bible/:book/:chapter/:verse",
+      "destination": "/api/bible?book=:book&chapter=:chapter&verse=:verse"
+    },
+    {
       "source": "/api/health",
       "destination": "/api/health"
     },

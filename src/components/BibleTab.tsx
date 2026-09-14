@@ -153,13 +153,6 @@ export const BibleTab: React.FC<BibleTabProps> = ({
     );
     if (inDb) return inDb;
 
-    // Generate fallback text based on language
-    const fallbackKJV = `Scripture reading from ${currentRef}. (King James Version)`;
-    const fallbackNIV = `Scripture reading from ${currentRef}. (Modern Translation)`;
-    const fallbackTelugu = `${selectedBook} ${selectedChapter}:${selectedVerse} పరిశుద్ధ లేఖనము.`;
-    const fallbackHindi = `${selectedBook} ${selectedChapter}:${selectedVerse} पवित्र बाइबिल वचन।`;
-    const fallbackSpanish = `Lectura bíblica de ${currentRef}.`;
-
     return {
       reference: currentRef,
       book: selectedBook,
@@ -167,11 +160,9 @@ export const BibleTab: React.FC<BibleTabProps> = ({
       verse: selectedVerse,
       topic: `${selectedBook} Chapter ${selectedChapter}`,
       translations: {
-        'en-kjv': fallbackKJV,
-        'en-niv': fallbackNIV,
-        'te-sv': fallbackTelugu,
-        'hi-hin': fallbackHindi,
-        'es-rv': fallbackSpanish,
+        'en-kjv': `${currentRef} is not available in the local Bible dataset.`,
+        'en-niv': `${currentRef} is not available in the local Bible dataset.`,
+        'te-sv': `${currentRef} స్థానిక బైబిల్ డేటాలో అందుబాటులో లేదు.`,
       },
     };
   }, [loadedVerse, selectedBook, selectedChapter, selectedVerse]);
@@ -311,7 +302,7 @@ export const BibleTab: React.FC<BibleTabProps> = ({
         return;
       }
     }
-    // If not found in exact DB, still project the reference!
+    // The selected reference is still projectable, but the preview clearly indicates missing local data.
     const customItem: VerseItem = {
       reference: quickInput.trim(),
       book: resolved?.book || selectedBook,
