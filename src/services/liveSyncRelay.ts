@@ -57,6 +57,7 @@ export class LiveSyncRelay {
   private activeDevices = new Map<string, ConnectedDevice>();
   private heartbeatTimer: any = null;
   private cleanupDevicesTimer: any = null;
+  private firestorePollingTimer: any = null;
   private lastAppliedTimestamp = 0;
   private pingStartTime = 0;
   private currentTransport: TransportMode = 'connecting';
@@ -140,6 +141,9 @@ export class LiveSyncRelay {
         this.account,
         (firestoreState) => {
           if (this.isDestroyed) return;
+          const stateTimestamp = Number(firestoreState.lastUpdated || 0);
+          if (stateTimestamp && stateTimestamp <= this.lastAppliedTimestamp) return;
+          if (stateTimestamp) this.lastAppliedTimestamp = stateTimestamp;
           this.isFirestoreActive = true;
           this.updateOverallStatus();
           this.onStateReceived(firestoreState, 'firebase_firestore');
@@ -147,10 +151,40 @@ export class LiveSyncRelay {
         () => {
           this.isFirestoreActive = false;
           this.updateOverallStatus();
+          this.startFirestorePolling();
         }
       );
+      // Keep a recovery read active because mobile browsers can suspend an SSE/
+      // Firestore stream without immediately reporting an error.
+      this.startFirestorePolling();
     } catch (err) {
       console.warn('Firebase Firestore live listener failed to initialize:', err);
+      this.startFirestorePolling();
+    }
+  }
+
+  private startFirestorePolling() {
+    if (this.firestorePollingTimer || this.isDestroyed) return;
+    this.firestorePollingTimer = setInterval(() => {
+      if (this.isDestroyed) return;
+      fetchInitialFirestoreWorshipState(this.account)
+        .then((firestoreState) => {
+          if (this.isDestroyed || !firestoreState) return;
+          const stateTimestamp = Number(firestoreState.lastUpdated || 0);
+          if (stateTimestamp <= this.lastAppliedTimestamp) return;
+          this.lastAppliedTimestamp = stateTimestamp;
+          this.isFirestoreActive = true;
+          this.updateOverallStatus();
+          this.onStateReceived(firestoreState, 'firebase_firestore_poll');
+        })
+        .catch(() => {});
+    }, 2000);
+  }
+
+  private stopFirestorePolling() {
+    if (this.firestorePollingTimer) {
+      clearInterval(this.firestorePollingTimer);
+      this.firestorePollingTimer = null;
     }
   }
 
@@ -627,6 +661,7 @@ export class LiveSyncRelay {
     this.isDestroyed = true;
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.cleanupDevicesTimer) clearInterval(this.cleanupDevicesTimer);
+    this.stopFirestorePolling();
     if (this.unsubscribeFirestore) {
       this.unsubscribeFirestore();
       this.unsubscribeFirestore = null;

@@ -208,6 +208,61 @@ export async function signInWithEmail(email: string, pass: string, desiredAccoun
 }
 
 /**
+ * Register an operator and create the account profile used by live sync.
+ */
+export async function registerWithEmail(
+  name: string,
+  email: string,
+  pass: string,
+  churchName: string,
+  role: string = 'operator'
+): Promise<UserSession> {
+  const cleanEmail = email.trim().toLowerCase();
+  const accountName = cleanEmail.split('@')[0].replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+  let user = auth.currentUser;
+
+  if (!user) {
+    const result = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+    user = result.user;
+  }
+
+  await updateProfile(user, { displayName: name.trim() });
+  await setDoc(
+    doc(db, 'users', user.uid),
+    {
+      uid: user.uid,
+      email: cleanEmail,
+      displayName: name.trim(),
+      accountName,
+      role,
+      updatedAt: new Date().toISOString(),
+    },
+    { merge: true }
+  );
+  await setDoc(
+    doc(db, 'accounts', accountName),
+    {
+      id: accountName,
+      name: name.trim(),
+      churchName: churchName.trim(),
+      leader: name.trim(),
+      updatedAt: new Date().toISOString(),
+      createdBy: user.uid,
+    },
+    { merge: true }
+  );
+
+  return {
+    accountName,
+    churchName: churchName.trim(),
+    operatorName: name.trim(),
+    role,
+    isLoggedIn: true,
+    loginTime: Date.now(),
+  };
+}
+
+/**
  * Sign Out from Firebase
  */
 export async function logOutFirebase(): Promise<void> {

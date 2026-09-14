@@ -134,6 +134,33 @@ export function useWorshipSync(
     };
   }, [account, clientType]);
 
+  // Keep displays current when a hosting provider suspends WebSocket or snapshot delivery.
+  useEffect(() => {
+    const intervalMs = Math.max(1000, Number(import.meta.env.VITE_SYNC_POLL_INTERVAL_MS || 2000));
+    const pollState = () => {
+      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
+      fetch(`/api/state/${encodeURIComponent(account)}`, { cache: 'no-store' })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((data) => {
+          if (!data?.state) return;
+          const incomingTimestamp = Number(data.state.lastUpdated || 0);
+          if (!incomingTimestamp || incomingTimestamp <= lastAppliedStateRef.current) return;
+          lastAppliedStateRef.current = incomingTimestamp;
+          setState((prev) => {
+            const nextState = { ...prev, ...data.state, account };
+            try {
+              localStorage.setItem(`worship_state_${account}`, JSON.stringify(nextState));
+            } catch (e) {}
+            return nextState;
+          });
+        })
+        .catch(() => {});
+    };
+
+    const timer = window.setInterval(pollState, intervalMs);
+    return () => window.clearInterval(timer);
+  }, [account]);
+
   // Switch church account
   const changeAccount = useCallback((newAccount: string) => {
     const clean = newAccount.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';

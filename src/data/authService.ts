@@ -3,6 +3,7 @@ import {
   saveRegisteredUserToFirestore,
   fetchRegisteredUsersFromFirestore,
   subscribeToRegisteredUsers,
+  registerWithEmail,
 } from '../services/firebase';
 
 const USERS_STORAGE_KEY = 'worship_registered_users';
@@ -263,7 +264,26 @@ export async function registerUser(params: {
     };
   }
 
-  // 1. Attempt Server-Side Registration (broadcasts to all devices in real time)
+  // Firebase is the durable production registration path.
+  try {
+    const session = await registerWithEmail(cleanName, cleanEmail, password, cleanChurch, cleanRole);
+    const user: RegisteredUser = {
+      id: `firebase-${cleanEmail}`,
+      name: cleanName,
+      email: cleanEmail,
+      password: '',
+      churchName: cleanChurch,
+      role: cleanRole,
+      accountSlug: session.accountName,
+      createdAt: Date.now(),
+    };
+    saveRegisteredUserToFirestore(user).catch(() => {});
+    return { success: true, user, session };
+  } catch (firebaseError) {
+    console.warn('Firebase registration unavailable, trying the server registration endpoint:', firebaseError);
+  }
+
+  // Fallback for self-hosted deployments that provide the registration endpoint.
   try {
     const response = await fetch('/api/auth/register', {
       method: 'POST',

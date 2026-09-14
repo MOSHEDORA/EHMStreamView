@@ -32,6 +32,58 @@ export default function handler(req: any, res: any) {
 
   const action = req.query?.action;
 
+  if (action === 'register' && req.method === 'POST') {
+    const body = typeof req.body === 'string' ? JSON.parse(req.body) : req.body || {};
+    const name = String(body.name || '').trim();
+    const email = String(body.email || '').trim().toLowerCase();
+    const password = String(body.password || '');
+    const churchName = String(body.churchName || `${name}'s Ministry`).trim();
+    const role = String(body.role || 'Lead AV Director').trim();
+
+    if (!name || !email || !email.includes('@') || password.length < 4) {
+      return res.status(400).json({
+        success: false,
+        error: 'Please provide a name, valid email, and password with at least 4 characters.',
+        errorType: 'invalid_input',
+      });
+    }
+
+    const existing = REGISTERED_USERS.find((u) => u.email.toLowerCase() === email);
+    if (existing) {
+      return res.status(409).json({
+        success: false,
+        error: 'An account with this email already exists. Please sign in instead.',
+        errorType: 'user_already_exists',
+      });
+    }
+
+    const accountSlug = email.split('@')[0].replace(/[^a-z0-9_-]/g, '') || `account-${Date.now()}`;
+    const user = {
+      id: `user-${Date.now()}`,
+      name,
+      email,
+      password,
+      churchName,
+      role,
+      accountSlug,
+      createdAt: Date.now(),
+    };
+    REGISTERED_USERS.push(user);
+
+    return res.status(201).json({
+      success: true,
+      user,
+      session: {
+        churchName,
+        accountName: accountSlug,
+        operatorName: name,
+        role,
+        isLoggedIn: true,
+        loginTime: Date.now(),
+      },
+    });
+  }
+
   if (action === 'users' || req.url?.includes('/users')) {
     return res.status(200).json({
       success: true,
