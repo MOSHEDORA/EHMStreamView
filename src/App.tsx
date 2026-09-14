@@ -134,7 +134,6 @@ export default function App() {
     return (
       <LoginPage
         onLogin={handleLogin}
-        defaultSession={session}
         deviceMode={deviceMode}
         onChangeDevice={handleChangeDevice}
       />
@@ -262,7 +261,7 @@ function OperatorConsole({
   };
 
   return (
-    <div className="flex flex-col h-screen w-screen bg-slate-950 text-slate-100 overflow-hidden font-sans">
+    <div className="flex flex-col h-screen w-full max-w-full bg-slate-950 text-slate-100 overflow-hidden font-sans">
       {/* 1. Top Global Broadcast Bar */}
       <BroadcastActionBar
         state={state}

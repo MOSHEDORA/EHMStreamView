@@ -51,7 +51,7 @@ export const DeviceSelectionPage: React.FC<DeviceSelectionPageProps> = ({
   const activeConfig: DeviceConfig = DEVICE_CONFIGS[selectedMode];
 
   return (
-    <div className="min-h-screen w-screen bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 overflow-y-auto selection:bg-sky-500 selection:text-white">
+    <div className="min-h-screen w-full max-w-full bg-slate-950 text-slate-100 flex flex-col justify-between p-4 sm:p-6 lg:p-8 overflow-x-hidden overflow-y-auto selection:bg-sky-500 selection:text-white">
       {/* Background ambient lighting */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden">
         <div className="absolute -top-40 left-1/2 -translate-x-1/2 w-[700px] h-[500px] bg-gradient-to-b from-sky-600/15 via-purple-600/10 to-transparent blur-3xl" />
@@ -59,7 +59,7 @@ export const DeviceSelectionPage: React.FC<DeviceSelectionPageProps> = ({
       </div>
 
       {/* Top Header */}
-      <header className="relative z-10 max-w-5xl mx-auto w-full flex items-center justify-between py-2 border-b border-slate-800/80">
+      <header className="relative z-10 max-w-5xl mx-auto w-full min-w-0 flex items-center justify-between py-2 border-b border-slate-800/80">
         <div className="flex items-center gap-3">
           <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-sky-500 via-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-sky-500/20">
             <Sparkles className="w-5 h-5 text-white" />
@@ -84,7 +84,7 @@ export const DeviceSelectionPage: React.FC<DeviceSelectionPageProps> = ({
       </header>
 
       {/* Main Container */}
-      <main className="relative z-10 max-w-5xl mx-auto w-full my-auto py-8 sm:py-12 space-y-8">
+      <main className="relative z-10 max-w-5xl mx-auto w-full min-w-0 my-auto py-8 sm:py-12 space-y-8">
         {/* Title Section */}
         <div className="text-center space-y-3 max-w-2xl mx-auto">
           <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300 text-xs font-semibold shadow-inner">
@@ -425,7 +425,7 @@ export const DeviceSelectionPage: React.FC<DeviceSelectionPageProps> = ({
       </footer>
 
       {/* Global App Footer */}
-      <AppFooter deviceMode={selectedMode} className="relative z-10 -mx-4 sm:-mx-6 lg:-mx-8 -mb-4 sm:-mb-6 lg:-mb-8 mt-4" />
+      <AppFooter deviceMode={selectedMode} className="relative z-10 mt-4" />
     </div>
   );
 };

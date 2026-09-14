@@ -1,13 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { UserSession, RegisteredUser, DeviceMode } from '../types';
-import {
-  loginUser,
-  registerUser,
-  getRegisteredUsers,
-  fetchRegisteredUsers,
-  saveRegisteredUsers,
-  initRegisteredUsersRealtimeSync,
-} from '../data/authService';
+import React, { useState } from 'react';
+import { UserSession, DeviceMode } from '../types';
 import {
   BookOpen,
   Mail,
@@ -15,7 +7,6 @@ import {
   Eye,
   EyeOff,
   ArrowRight,
-  Sparkles,
   Tv,
   Maximize2,
   Languages,
@@ -33,11 +24,10 @@ import {
   Sliders,
 } from 'lucide-react';
 import { AppFooter } from './AppFooter';
-import { signInWithGoogle } from '../services/firebase';
+import { signInWithEmail, registerWithEmail } from '../services/firebase';
 
 interface LoginPageProps {
   onLogin: (session: UserSession) => void;
-  defaultSession?: UserSession | null;
   deviceMode?: DeviceMode | null;
   onChangeDevice?: () => void;
 }
@@ -51,8 +41,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
 
 
   // Login form states
-  const [loginEmail, setLoginEmail] = useState('moshe.ravikampadu@gmail.com');
-  const [loginPassword, setLoginPassword] = useState('worship2026');
+  const [loginEmail, setLoginEmail] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
   const [showLoginPassword, setShowLoginPassword] = useState(false);
   const [rememberMe, setRememberMe] = useState(true);
 
@@ -69,96 +59,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   const [errorType, setErrorType] = useState<string | null>(null);
   const [successMsg, setSuccessMsg] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isRefreshingUsers, setIsRefreshingUsers] = useState(false);
-  const [isLiveConnected, setIsLiveConnected] = useState(false);
-
-  // Real-time registered users list from server
-  const [registeredUsersList, setRegisteredUsersList] = useState<RegisteredUser[]>(() => getRegisteredUsers());
-
-  // WebSocket reference for live cross-device user notifications
-  const wsRef = useRef<WebSocket | null>(null);
-
-  // Real-time server sync & WebSocket listener
-  useEffect(() => {
-    let isCancelled = false;
-
-    // 1. Initial fetch from server & Firestore
-    fetchRegisteredUsers().then((users) => {
-      if (!isCancelled && Array.isArray(users) && users.length > 0) {
-        setRegisteredUsersList(users);
-      }
-    });
-
-    // 1b. Real-time Firebase Firestore subscription for instant multi-device account sync
-    const unsubFirestore = initRegisteredUsersRealtimeSync((users) => {
-      if (!isCancelled && Array.isArray(users)) {
-        setRegisteredUsersList(users);
-      }
-    });
-
-    // 2. Setup BroadcastChannel for 0ms cross-tab instant update
-    let bc: BroadcastChannel | null = null;
-    try {
-      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        bc = new BroadcastChannel('worship_users_channel');
-        bc.onmessage = (event) => {
-          if (!isCancelled && event.data && event.data.type === 'users_updated' && Array.isArray(event.data.users)) {
-            setRegisteredUsersList(event.data.users);
-          }
-        };
-      }
-    } catch (e) {}
-
-    // 3. Connect WebSocket to receive real-time updates from other devices
-    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${protocol}//${window.location.host}/ws`;
-
-    try {
-      const ws = new WebSocket(wsUrl);
-      wsRef.current = ws;
-
-      ws.onopen = () => {
-        if (!isCancelled) {
-          setIsLiveConnected(true);
-          ws.send(JSON.stringify({ type: 'get_users' }));
-        }
-      };
-
-      ws.onmessage = (event) => {
-        try {
-          const data = JSON.parse(event.data);
-          if (data.type === 'users_updated' && Array.isArray(data.users)) {
-            if (!isCancelled) {
-              setRegisteredUsersList(data.users);
-              saveRegisteredUsers(data.users);
-            }
-          }
-        } catch (err) {}
-      };
-
-      ws.onclose = () => {
-        if (!isCancelled) {
-          setIsLiveConnected(false);
-        }
-      };
-    } catch (err) {}
-
-    return () => {
-      isCancelled = true;
-      if (bc) bc.close();
-      if (wsRef.current) wsRef.current.close();
-    };
-  }, []);
-
-  const handleManualRefresh = async () => {
-    setIsRefreshingUsers(true);
-    try {
-      const users = await fetchRegisteredUsers();
-      setRegisteredUsersList(users);
-    } finally {
-      setIsRefreshingUsers(false);
-    }
-  };
 
   const handleSwitchToRegister = (prefillEmail?: string) => {
     setAuthMode('register');
@@ -188,25 +88,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsSubmitting(true);
 
     try {
-      const result = await loginUser(loginEmail, loginPassword);
-
-      if (!result.success || !result.session) {
-        setErrorMsg(result.error || 'Failed to sign in. Please verify your credentials.');
-        setErrorType(result.errorType || 'general_error');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Success
-      setSuccessMsg(`Welcome back, ${result.user?.name || 'Operator'}! Connecting sanctuary session...`);
+      const session = await signInWithEmail(loginEmail, loginPassword);
+      setSuccessMsg('Welcome back! Connecting sanctuary session...');
       if (rememberMe) {
-        localStorage.setItem('worship_user_session', JSON.stringify(result.session));
+        localStorage.setItem('worship_user_session', JSON.stringify(session));
       }
       setTimeout(() => {
-        onLogin(result.session!);
+        onLogin(session);
       }, 350);
     } catch (err: any) {
-      setErrorMsg('An unexpected error occurred during sign in. Please try again.');
+      setErrorMsg(err?.message || 'Failed to sign in. Please verify your credentials.');
       setIsSubmitting(false);
     }
   };
@@ -226,28 +117,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     setIsSubmitting(true);
 
     try {
-      const result = await registerUser({
-        name: regName,
-        churchName: regChurch,
-        email: regEmail,
-        password: regPassword,
-      });
-
-      if (!result.success || !result.session) {
-        setErrorMsg(result.error || 'Failed to register account.');
-        setErrorType(result.errorType || 'general_error');
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Successfully registered!
-      setSuccessMsg(`Account created for ${result.user?.churchName}! Synced across all devices. Logging in...`);
+      const session = await registerWithEmail(regName, regEmail, regPassword, regChurch);
+      setSuccessMsg('Account created. Synced across all devices. Logging in...');
 
       if (rememberMe) {
-        localStorage.setItem('worship_user_session', JSON.stringify(result.session));
+        localStorage.setItem('worship_user_session', JSON.stringify(session));
       }
       setTimeout(() => {
-        onLogin(result.session!);
+        onLogin(session);
       }, 400);
     } catch (err: any) {
       setErrorMsg('An unexpected error occurred during registration. Please try again.');
@@ -255,45 +132,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
     }
   };
 
-  const handleGoogleAuth = async () => {
-    setErrorMsg('');
-    setErrorType(null);
-    setSuccessMsg('');
-    setIsSubmitting(true);
-
-    try {
-      const { session } = await signInWithGoogle();
-      localStorage.setItem('worship_user_session', JSON.stringify(session));
-      setSuccessMsg(
-        authMode === 'register'
-          ? 'Google account created. Connecting sanctuary session...'
-          : 'Signed in with Google. Connecting sanctuary session...'
-      );
-      setTimeout(() => onLogin(session), 350);
-    } catch (err: any) {
-      if (err?.code === 'auth/popup-closed-by-user') {
-        setErrorMsg('Google sign-in was cancelled. Please try again.');
-      } else if (err?.code === 'auth/operation-not-allowed') {
-        setErrorMsg('Google sign-in is not enabled in Firebase yet. Enable the Google provider in Firebase Authentication.');
-      } else {
-        setErrorMsg(err?.message || 'Google authentication failed. Please try again.');
-      }
-      setIsSubmitting(false);
-    }
-  };
-
-  const handleQuickFillAccount = (acc: RegisteredUser) => {
-    setLoginEmail(acc.email);
-    if (acc.password) {
-      setLoginPassword(acc.password);
-    }
-    setErrorMsg('');
-    setErrorType(null);
-    setAuthMode('login');
-  };
-
   return (
-    <div className="min-h-screen w-screen bg-slate-950 text-slate-100 flex flex-col justify-between selection:bg-sky-500 selection:text-white">
+    <div className="min-h-screen w-full max-w-full bg-slate-950 text-slate-100 flex flex-col justify-between overflow-x-hidden selection:bg-sky-500 selection:text-white">
       {/* Top Navigation Header */}
       <header className="border-b border-slate-800/80 px-4 sm:px-6 py-3.5 flex items-center justify-between bg-slate-950/80 backdrop-blur-md sticky top-0 z-20">
         <div className="flex items-center gap-3">
@@ -315,17 +155,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 text-xs">
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-900 border border-slate-800 text-slate-300">
-            <span className={`w-2 h-2 rounded-full ${isLiveConnected ? 'bg-emerald-400 animate-pulse' : 'bg-amber-400'}`} />
-            <span className="text-[11px] font-semibold hidden sm:inline">
-              {isLiveConnected ? 'Real-Time Sync Active' : 'Connecting to Server...'}
-            </span>
-            <span className="text-[11px] font-semibold sm:hidden">
-              {isLiveConnected ? 'Live Sync' : 'Connecting'}
-            </span>
-          </div>
-        </div>
       </header>
 
       {/* Main Authentication Section */}
@@ -462,22 +291,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             {/* 1. LOGIN FORM */}
             {authMode === 'login' ? (
               <form onSubmit={handleSignInSubmit} className="space-y-4">
-                <button
-                  type="button"
-                  onClick={handleGoogleAuth}
-                  disabled={isSubmitting}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all"
-                >
-                  <span className="text-base font-black">G</span>
-                  <span>Continue with Google</span>
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <div className="h-px bg-slate-800 flex-1" />
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">or use email</span>
-                  <div className="h-px bg-slate-800 flex-1" />
-                </div>
-
                 {/* Email Address */}
                 <div>
                   <label
@@ -601,22 +414,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
             ) : (
               /* 2. REGISTER FORM */
               <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
-                <button
-                  type="button"
-                  onClick={handleGoogleAuth}
-                  disabled={isSubmitting}
-                  className="w-full py-2.5 px-4 rounded-xl bg-white hover:bg-slate-100 disabled:opacity-60 text-slate-900 font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all"
-                >
-                  <span className="text-base font-black">G</span>
-                  <span>Sign up with Google</span>
-                </button>
-
-                <div className="flex items-center gap-2">
-                  <div className="h-px bg-slate-800 flex-1" />
-                  <span className="text-[10px] text-slate-500 uppercase tracking-wider font-bold">or register with email</span>
-                  <div className="h-px bg-slate-800 flex-1" />
-                </div>
-
                 {/* Full Name */}
                 <div>
                   <label
@@ -796,85 +593,6 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                 </div>
               </form>
             )}
-
-            {/* Real-time Cross-Device Registered Accounts Selection */}
-            <div className="mt-5 pt-4 border-t border-slate-800">
-              <div className="flex items-center justify-between mb-2.5">
-                <div className="flex items-center gap-1.5">
-                  <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                  <span className="text-[11px] font-bold text-slate-300 uppercase tracking-wider">
-                    Registered Church Accounts ({registeredUsersList.length})
-                  </span>
-                  <span className="text-[9px] font-semibold text-emerald-400 bg-emerald-950/80 border border-emerald-800/60 px-1.5 py-0.5 rounded">
-                    Real-time
-                  </span>
-                </div>
-                <button
-                  type="button"
-                  onClick={handleManualRefresh}
-                  disabled={isRefreshingUsers}
-                  className="text-[11px] text-slate-400 hover:text-sky-300 flex items-center gap-1 py-0.5 px-1.5 rounded hover:bg-slate-800 transition-colors"
-                  title="Refresh accounts list from server"
-                >
-                  <RefreshCw className={`w-3 h-3 ${isRefreshingUsers ? 'animate-spin text-sky-400' : ''}`} />
-                  <span className="hidden sm:inline">Refresh</span>
-                </button>
-              </div>
-
-              {registeredUsersList.length === 0 ? (
-                <div className="p-3 rounded-lg bg-slate-950/60 border border-slate-800 text-center text-xs text-slate-400">
-                  No registered accounts found yet. Fill the registration form above to create your church account.
-                </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-48 overflow-y-auto pr-1">
-                  {registeredUsersList.map((user) => {
-                    const isSelected = loginEmail.toLowerCase() === user.email.toLowerCase();
-                    return (
-                      <button
-                        key={user.id || user.email}
-                        type="button"
-                        onClick={() => handleQuickFillAccount(user)}
-                        className={`p-2.5 rounded-xl border text-left transition-all text-xs group relative ${
-                          isSelected
-                            ? 'bg-sky-950/70 border-sky-500 shadow-sm'
-                            : 'bg-slate-950/80 hover:bg-slate-900 border-slate-800 hover:border-slate-700'
-                        }`}
-                      >
-                        <div className="flex items-start justify-between gap-1 mb-0.5">
-                          <div className="font-bold text-slate-100 group-hover:text-sky-300 truncate text-xs">
-                            {user.name}
-                          </div>
-                          <span className="text-[9px] px-1.5 py-0.2 rounded bg-slate-800 text-slate-400 font-mono flex-shrink-0">
-                            {user.onlineDevices && user.onlineDevices > 0 ? (
-                              <span className="text-emerald-400 font-semibold flex items-center gap-1">
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-                                {user.onlineDevices} live
-                              </span>
-                            ) : (
-                              'Ready'
-                            )}
-                          </span>
-                        </div>
-                        <div className="text-[10px] text-sky-400/90 font-medium truncate">
-                          {user.churchName}
-                        </div>
-                        <div className="text-[10px] text-slate-400 truncate mt-0.5">
-                          {user.email}
-                        </div>
-                        {user.password && (
-                          <div className="text-[9px] text-amber-400/80 font-mono mt-1 flex items-center justify-between">
-                            <span>pw: {user.password}</span>
-                            <span className="text-[9px] text-sky-400 opacity-0 group-hover:opacity-100 transition-opacity">
-                              Click to sign in →
-                            </span>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
 
             {/* Feature Highlights */}
             <div className="mt-5 pt-4 border-t border-slate-800 grid grid-cols-3 gap-2 text-center text-[11px] text-slate-400">

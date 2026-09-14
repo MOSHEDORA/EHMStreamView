@@ -2,7 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import { WorshipState } from '../types';
 import { DEFAULT_STATE } from '../data/defaultSettings';
 import { LiveSyncRelay, TransportMode, ConnectedDevice } from '../services/liveSyncRelay';
-import { saveRegisteredUsers } from '../data/authService';
 
 export function useWorshipSync(
   initialAccount: string = 'worship-main',

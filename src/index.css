@@ -1,5 +1,5 @@
-@import "tailwindcss";
 @import url('https://fonts.googleapis.com/css2?family=Ramabhadra&display=swap');
+@import "tailwindcss";
 
 /* Telugu Default Font: Ramabhadra */
 .font-telugu,

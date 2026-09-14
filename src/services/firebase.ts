@@ -1,12 +1,9 @@
 import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
   getAuth,
-  GoogleAuthProvider,
-  signInWithPopup,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   signOut,
-  onAuthStateChanged,
   User,
   updateProfile,
   Auth,
@@ -22,10 +19,9 @@ import {
   Unsubscribe,
   collection,
   deleteDoc,
-  increment,
   getDocs,
 } from 'firebase/firestore';
-import { WorshipState, UserSession, Song, RegisteredUser } from '../types';
+import { WorshipState, UserSession, Song } from '../types';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
@@ -45,9 +41,6 @@ export const auth: Auth = getAuth(app);
 export const db: Firestore = firebaseConfigData.firestoreDatabaseId
   ? getFirestore(app, firebaseConfigData.firestoreDatabaseId)
   : getFirestore(app);
-
-export const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 /**
  * Validate Connection to Firestore on startup as mandated by Firebase Integration Skill
@@ -92,68 +85,6 @@ export interface UserProfileRecord {
   accountName: string;
   role: 'operator' | 'admin' | 'viewer';
   updatedAt: string;
-}
-
-/**
- * Sign In with Google
- */
-export async function signInWithGoogle(): Promise<{ user: User; session: UserSession }> {
-  const result = await signInWithPopup(auth, googleProvider);
-  const user = result.user;
-
-  // Derive account name from email prefix or user ID
-  const emailPrefix = user.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') : 'church';
-  const defaultAccount = emailPrefix || 'worship-main';
-
-  // Check if profile exists in Firestore
-  const userRef = doc(db, 'users', user.uid);
-  const snap = await getDoc(userRef);
-
-  let accountName = defaultAccount;
-  let role: 'operator' | 'admin' | 'viewer' = 'admin';
-
-  if (snap.exists()) {
-    const profile = snap.data() as UserProfileRecord;
-    accountName = profile.accountName || defaultAccount;
-    role = profile.role || 'admin';
-  } else {
-    // Create new profile in Firestore
-    const newProfile: UserProfileRecord = {
-      uid: user.uid,
-      email: user.email || '',
-      displayName: user.displayName || 'Worship Leader',
-      accountName,
-      role,
-      updatedAt: new Date().toISOString(),
-    };
-    await setDoc(userRef, newProfile, { merge: true });
-
-    // Also initialize Church Account if not exists
-    const accountRef = doc(db, 'accounts', accountName);
-    const accSnap = await getDoc(accountRef);
-    if (!accSnap.exists()) {
-      await setDoc(accountRef, {
-        id: accountName,
-        name: user.displayName || 'Grace Church',
-        churchName: `${user.displayName || 'Worship'} Ministry`,
-        leader: user.displayName || 'Worship Pastor',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-        createdBy: user.uid,
-      });
-    }
-  }
-
-  const session: UserSession = {
-    accountName,
-    churchName: `${user.displayName || 'Grace'} Community Church`,
-    operatorName: user.displayName || user.email || 'Worship Leader',
-    role,
-    isLoggedIn: true,
-    loginTime: Date.now(),
-  };
-
-  return { user, session };
 }
 
 /**
@@ -373,39 +304,6 @@ export async function fetchInitialFirestoreWorshipState(accountId: string): Prom
 export const APP_VERSION = 'v2.6.4';
 export const APP_DESIGNER = 'Designed by Moshe Dora from EHM, Kakinada';
 
-export async function trackFirestoreUserVisit(visitorId: string): Promise<number | null> {
-  if (!visitorId) return null;
-  try {
-    const statsDocRef = doc(db, 'stats', 'global');
-    const snap = await getDoc(statsDocRef);
-    if (!snap.exists()) {
-      await setDoc(statsDocRef, {
-        totalUsersUsed: 1249,
-        version: APP_VERSION,
-        designer: APP_DESIGNER,
-        updatedAt: new Date().toISOString(),
-      });
-      return 1249;
-    } else {
-      await setDoc(
-        statsDocRef,
-        {
-          totalUsersUsed: increment(1),
-          version: APP_VERSION,
-          designer: APP_DESIGNER,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-      const updatedSnap = await getDoc(statsDocRef);
-      return updatedSnap.exists() ? updatedSnap.data()?.totalUsersUsed : null;
-    }
-  } catch (err) {
-    console.warn('Firestore visit tracking fallback:', err);
-    return null;
-  }
-}
-
 export async function updateFirestoreLivePresence(
   sessionId: string,
   extra?: { deviceMode?: string; churchName?: string; accountId?: string }
@@ -587,113 +485,5 @@ export function subscribeToAccountSongs(
   );
 }
 
-/**
- * ============================================================================
- * Synchronized Registered Accounts in Firebase Firestore
- * Path: /registered_users/{userId} & /accounts/{accountId}
- * ============================================================================
- */
-export async function saveRegisteredUserToFirestore(user: RegisteredUser): Promise<boolean> {
-  if (!user || !user.email) return false;
-  const docId = user.id || `user-${user.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
-  try {
-    const userDocRef = doc(db, 'registered_users', docId);
-    await setDoc(
-      userDocRef,
-      {
-        id: docId,
-        name: user.name,
-        email: user.email.toLowerCase().trim(),
-        password: user.password || '',
-        churchName: user.churchName || '',
-        role: user.role || 'Lead AV Director',
-        accountSlug: user.accountSlug || 'worship-main',
-        createdAt: user.createdAt || Date.now(),
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
-
-    // Also register or update the church account document
-    if (user.accountSlug) {
-      const accRef = doc(db, 'accounts', user.accountSlug);
-      await setDoc(
-        accRef,
-        {
-          id: user.accountSlug,
-          name: user.churchName || user.name,
-          churchName: user.churchName || user.name,
-          leader: user.name,
-          updatedAt: new Date().toISOString(),
-        },
-        { merge: true }
-      );
-    }
-    return true;
-  } catch (err) {
-    console.warn('Failed to save registered account to Firestore:', err);
-    return false;
-  }
-}
-
-export async function fetchRegisteredUsersFromFirestore(): Promise<RegisteredUser[]> {
-  try {
-    const colRef = collection(db, 'registered_users');
-    const snap = await getDocs(colRef);
-    const users: RegisteredUser[] = [];
-    snap.forEach((docItem) => {
-      const data = docItem.data();
-      if (data && data.email) {
-        users.push({
-          id: data.id || docItem.id,
-          name: data.name || '',
-          email: data.email,
-          password: data.password || '',
-          churchName: data.churchName || '',
-          role: data.role || 'Lead AV Director',
-          accountSlug: data.accountSlug || 'worship-main',
-          createdAt: data.createdAt || Date.now(),
-        });
-      }
-    });
-    return users;
-  } catch (err) {
-    console.warn('Failed to fetch registered users from Firestore:', err);
-    return [];
-  }
-}
-
-export function subscribeToRegisteredUsers(
-  onUsersUpdate: (users: RegisteredUser[]) => void
-): Unsubscribe {
-  const colRef = collection(db, 'registered_users');
-  return onSnapshot(
-    colRef,
-    (snapshot) => {
-      const users: RegisteredUser[] = [];
-      snapshot.forEach((docItem) => {
-        const data = docItem.data();
-        if (data && data.email) {
-          users.push({
-            id: data.id || docItem.id,
-            name: data.name || '',
-            email: data.email,
-            password: data.password || '',
-            churchName: data.churchName || '',
-            role: data.role || 'Lead AV Director',
-            accountSlug: data.accountSlug || 'worship-main',
-            createdAt: data.createdAt || Date.now(),
-          });
-        }
-      });
-      if (users.length > 0) {
-        onUsersUpdate(users);
-      }
-    },
-    (err) => {
-      console.warn('Registered users subscription error:', err);
-    }
-  );
-}
 
 
