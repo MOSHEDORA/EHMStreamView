@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { UserSession, RegisteredUser } from '../types';
+import { UserSession, RegisteredUser, DeviceMode } from '../types';
 import {
   loginUser,
   registerUser,
@@ -26,15 +26,26 @@ import {
   User,
   Radio,
   RefreshCw,
+  Smartphone,
+  Tablet,
+  Monitor,
+  Sliders,
 } from 'lucide-react';
 
 interface LoginPageProps {
   onLogin: (session: UserSession) => void;
   defaultSession?: UserSession | null;
+  deviceMode?: DeviceMode | null;
+  onChangeDevice?: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
+export const LoginPage: React.FC<LoginPageProps> = ({
+  onLogin,
+  deviceMode = 'desktop',
+  onChangeDevice,
+}) => {
   const [authMode, setAuthMode] = useState<'login' | 'register'>('login');
+
 
   // Login form states
   const [loginEmail, setLoginEmail] = useState('moshe.ravikampadu@gmail.com');
@@ -281,7 +292,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onLogin }) => {
       </header>
 
       {/* Main Authentication Section */}
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-8">
+      <main className="flex-1 flex flex-col items-center justify-center p-4 sm:p-8 space-y-4">
+        {/* Configured Device Mode Banner */}
+        <div className="w-full max-w-md bg-slate-900/90 border border-slate-800 rounded-2xl px-4 py-2.5 flex items-center justify-between shadow-lg text-xs">
+          <div className="flex items-center gap-2">
+            <span className="p-1 rounded-lg bg-slate-950 border border-slate-800 text-sky-400">
+              {deviceMode === 'mobile' && <Smartphone className="w-4 h-4 text-sky-400" />}
+              {deviceMode === 'tablet' && <Tablet className="w-4 h-4 text-indigo-400" />}
+              {deviceMode === 'desktop' && <Monitor className="w-4 h-4 text-emerald-400" />}
+            </span>
+            <div>
+              <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">
+                Configured Layout
+              </span>
+              <span className="font-extrabold text-white">
+                {deviceMode === 'mobile' && 'Mobile Smartphone'}
+                {deviceMode === 'tablet' && 'Tablet / iPad'}
+                {deviceMode === 'desktop' && 'Desktop / Studio PC'}
+              </span>
+            </div>
+          </div>
+
+          {onChangeDevice && (
+            <button
+              type="button"
+              onClick={onChangeDevice}
+              className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 hover:text-white font-bold text-xs flex items-center gap-1.5 transition-all shadow-sm"
+              title="Change device hardware layout"
+            >
+              <Sliders className="w-3 h-3 text-sky-400" />
+              <span>Change</span>
+            </button>
+          )}
+        </div>
+
         <div className="w-full max-w-md">
           {/* Card Container */}
           <div className="bg-slate-900/95 border border-slate-800 rounded-3xl p-6 sm:p-8 shadow-2xl shadow-black/80 backdrop-blur-xl relative">

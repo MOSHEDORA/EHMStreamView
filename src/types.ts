@@ -158,3 +158,18 @@ export interface RegisteredUser {
   onlineDevices?: number;
   createdAt: number;
 }
+
+export type DeviceMode = 'mobile' | 'tablet' | 'desktop';
+
+export interface DeviceConfig {
+  mode: DeviceMode;
+  name: string;
+  subtitle: string;
+  iconName: 'smartphone' | 'tablet' | 'monitor';
+  features: string[];
+  touchOptimized: boolean;
+  density: 'touch-compact' | 'comfortable' | 'studio-pro';
+  defaultLayout: 'single-pane' | 'split-pane' | 'multi-pane';
+  hasPersistentSideMonitors: boolean;
+}
+

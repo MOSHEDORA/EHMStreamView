@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { WorshipState, UserSession } from '../types';
+import { WorshipState, UserSession, DeviceMode } from '../types';
 import { AccountLoginModal } from './AccountLoginModal';
 import { OutputUrlsModal } from './OutputUrlsModal';
 import {
@@ -20,6 +20,8 @@ import {
   ChevronDown,
   LogIn,
   Layers,
+  Smartphone,
+  Tablet,
 } from 'lucide-react';
 
 interface BroadcastActionBarProps {
@@ -28,6 +30,8 @@ interface BroadcastActionBarProps {
   connectionStatus: 'connected' | 'connecting' | 'disconnected';
   connectedCount: number;
   userSession: UserSession;
+  deviceMode?: DeviceMode;
+  onChangeDevice?: () => void;
   onChangeAccount: (newAccount: string) => void;
   onLogout: () => void;
   onUpdateSession?: (newSession: UserSession) => void;
@@ -44,6 +48,8 @@ export const BroadcastActionBar: React.FC<BroadcastActionBarProps> = ({
   connectionStatus,
   connectedCount,
   userSession,
+  deviceMode,
+  onChangeDevice,
   onChangeAccount,
   onLogout,
   onUpdateSession,
@@ -152,6 +158,21 @@ export const BroadcastActionBar: React.FC<BroadcastActionBarProps> = ({
               </span>
             )}
           </div>
+          {/* Device Profile Switcher */}
+          {deviceMode && (
+            <button
+              id="topbar-device-mode-btn"
+              type="button"
+              onClick={onChangeDevice}
+              className="flex items-center gap-1.5 px-2 py-1 rounded-lg bg-slate-900 hover:bg-slate-800 border border-slate-800 text-[11px] text-slate-300 hover:text-white transition-all shadow-sm"
+              title={`Running in ${deviceMode} mode. Click to switch hardware layout.`}
+            >
+              {deviceMode === 'mobile' && <Smartphone className="w-3.5 h-3.5 text-sky-400" />}
+              {deviceMode === 'tablet' && <Tablet className="w-3.5 h-3.5 text-indigo-400" />}
+              {deviceMode === 'desktop' && <Monitor className="w-3.5 h-3.5 text-emerald-400" />}
+              <span className="hidden sm:inline font-semibold capitalize">{deviceMode}</span>
+            </button>
+          )}
         </div>
       </div>
 
