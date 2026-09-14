@@ -1,0 +1,6 @@
+{
+  "name": "Worship Projection & Bible Presenter",
+  "description": "Real-time worship projection software for multi-language Bible verses, worship song lyrics, customizable lower thirds, and full screen displays synchronized by account.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
