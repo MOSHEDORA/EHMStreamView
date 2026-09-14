@@ -37,6 +37,25 @@ const firebaseConfig = {
 export const app: FirebaseApp = getApps().length === 0 ? initializeApp(firebaseConfig) : getApp();
 export const auth: Auth = getAuth(app);
 
+const FIREBASE_OPERATION_TIMEOUT_MS = 15000;
+
+async function withFirebaseTimeout<T>(operation: Promise<T>, operationName: string): Promise<T> {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(() => {
+      const error = new Error(`${operationName} timed out. Check Firebase Auth, Firestore, and network settings.`);
+      error.name = 'FirebaseTimeoutError';
+      reject(error);
+    }, FIREBASE_OPERATION_TIMEOUT_MS);
+  });
+
+  try {
+    return await Promise.race([operation, timeout]);
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
+}
+
 export function getEmailAuthErrorMessage(error: any, action: 'sign in' | 'register'): string {
   const errorMessage = String(error?.message || '').toUpperCase();
   if (error?.code === 'auth/operation-not-allowed' || errorMessage.includes('PASSWORD_LOGIN_DISABLED')) {
@@ -50,6 +69,12 @@ export function getEmailAuthErrorMessage(error: any, action: 'sign in' | 'regist
   }
   if (error?.code === 'auth/weak-password') {
     return 'Password must contain at least 6 characters.';
+  }
+  if (error?.code === 'permission-denied') {
+    return 'Firebase Firestore rejected the account profile write. Deploy the Firestore rules for this project.';
+  }
+  if (error?.name === 'FirebaseTimeoutError') {
+    return error.message;
   }
   return error?.message || `Failed to ${action}.`;
 }
@@ -112,12 +137,15 @@ export interface UserProfileRecord {
  * Sign In with Email & Password
  */
 export async function signInWithEmail(email: string, pass: string, desiredAccount?: string): Promise<UserSession> {
-  const res = await signInWithEmailAndPassword(auth, email.trim().toLowerCase(), pass);
+  const res = await withFirebaseTimeout(
+    signInWithEmailAndPassword(auth, email.trim().toLowerCase(), pass),
+    'Email sign in'
+  );
   const user = res.user;
 
   const defaultAcc = desiredAccount || (user.email ? user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') : 'worship-main');
   const userRef = doc(db, 'users', user.uid);
-  const snap = await getDoc(userRef);
+  const snap = await withFirebaseTimeout(getDoc(userRef), 'User profile loading');
 
   let accountName = defaultAcc;
   let role = 'operator';
@@ -128,14 +156,14 @@ export async function signInWithEmail(email: string, pass: string, desiredAccoun
     accountName = desiredAccount || p.accountName || defaultAcc;
     role = p.role || 'operator';
   } else {
-    await setDoc(userRef, {
+    await withFirebaseTimeout(setDoc(userRef, {
       uid: user.uid,
       email: user.email || '',
       displayName: user.email ? user.email.split('@')[0] : 'Operator',
       accountName,
       role,
       updatedAt: new Date().toISOString(),
-    });
+    }), 'User profile creation');
   }
 
   return {
@@ -160,15 +188,14 @@ export async function registerWithEmail(
 ): Promise<UserSession> {
   const cleanEmail = email.trim().toLowerCase();
   const accountName = cleanEmail.split('@')[0].replace(/[^a-z0-9_-]/g, '') || 'worship-main';
-  let user = auth.currentUser;
+  const result = await withFirebaseTimeout(
+    createUserWithEmailAndPassword(auth, cleanEmail, pass),
+    'Account creation'
+  );
+  const user = result.user;
 
-  if (!user) {
-    const result = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
-    user = result.user;
-  }
-
-  await updateProfile(user, { displayName: name.trim() });
-  await setDoc(
+  await withFirebaseTimeout(updateProfile(user, { displayName: name.trim() }), 'Profile update');
+  await withFirebaseTimeout(setDoc(
     doc(db, 'users', user.uid),
     {
       uid: user.uid,
@@ -179,8 +206,8 @@ export async function registerWithEmail(
       updatedAt: new Date().toISOString(),
     },
     { merge: true }
-  );
-  await setDoc(
+  ), 'User profile creation');
+  await withFirebaseTimeout(setDoc(
     doc(db, 'accounts', accountName),
     {
       id: accountName,
@@ -191,7 +218,7 @@ export async function registerWithEmail(
       createdBy: user.uid,
     },
     { merge: true }
-  );
+  ), 'Church account creation');
 
   return {
     accountName,

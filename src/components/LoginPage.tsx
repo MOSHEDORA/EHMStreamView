@@ -113,6 +113,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       setErrorType('password_mismatch');
       return;
     }
+    if (regPassword.length < 6) {
+      setErrorMsg('Password must contain at least 6 characters.');
+      setErrorType('weak_password');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -509,6 +514,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                         id="reg-password-input"
                         type={showRegPassword ? 'text' : 'password'}
                         required
+                        minLength={6}
                         value={regPassword}
                         onChange={(e) => {
                           setRegPassword(e.target.value);

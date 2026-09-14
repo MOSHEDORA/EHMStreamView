@@ -85,6 +85,11 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
       setErrorType('password_mismatch');
       return;
     }
+    if (regPassword.length < 6) {
+      setErrorMsg('Password must contain at least 6 characters.');
+      setErrorType('weak_password');
+      return;
+    }
 
     setIsSubmitting(true);
 
@@ -385,6 +390,7 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
                 <input
                   type={showRegPassword ? 'text' : 'password'}
                   required
+                  minLength={6}
                   value={regPassword}
                   onChange={(e) => {
                     setRegPassword(e.target.value);
