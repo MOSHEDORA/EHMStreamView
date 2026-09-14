@@ -1,0 +1,98 @@
+{
+  "entities": {
+    "Account": {
+      "title": "Church Account",
+      "description": "Church or worship ministry account record",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "churchName": { "type": "string" },
+        "leader": { "type": "string" },
+        "createdBy": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "name", "churchName", "createdAt"]
+    },
+    "LiveState": {
+      "title": "Live Presentation State",
+      "description": "Synchronized real-time slide, theme, blackout and alert state across projector and displays",
+      "type": "object",
+      "properties": {
+        "accountId": { "type": "string" },
+        "displayMode": { "type": "string", "enum": ["fullscreen", "lowerthird"] },
+        "isBlackout": { "type": "boolean" },
+        "isClearText": { "type": "boolean" },
+        "isLogo": { "type": "boolean" },
+        "alertText": { "type": "string" },
+        "isAlertVisible": { "type": "boolean" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["accountId", "displayMode", "isBlackout", "isClearText", "isLogo", "updatedAt"]
+    },
+    "UserProfile": {
+      "title": "User Profile",
+      "description": "Church operator user profile",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "accountName": { "type": "string" },
+        "role": { "type": "string", "enum": ["operator", "admin", "viewer"] },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["uid", "accountName", "role"]
+    },
+    "AppStats": {
+      "title": "Global App Usage & Stats",
+      "description": "Aggregated application usage counters and version information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "totalUsersUsed": { "type": "number" },
+        "totalLiveUsers": { "type": "number" },
+        "version": { "type": "string" },
+        "designer": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["totalUsersUsed", "version", "updatedAt"]
+    },
+    "PresenceSession": {
+      "title": "Active Live Presence Session",
+      "description": "Heartbeat record of currently active live operator or display",
+      "type": "object",
+      "properties": {
+        "sessionId": { "type": "string" },
+        "lastSeen": { "type": "number" },
+        "deviceMode": { "type": "string" },
+        "churchName": { "type": "string" }
+      },
+      "required": ["sessionId", "lastSeen"]
+    }
+  },
+  "firestore": {
+    "/accounts/{accountId}": {
+      "schema": "Account",
+      "description": "Church organization accounts"
+    },
+    "/accounts/{accountId}/live/{docId}": {
+      "schema": "LiveState",
+      "description": "Real-time worship sync state document"
+    },
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles indexed by Firebase Auth UID"
+    },
+    "/stats/{statId}": {
+      "schema": "AppStats",
+      "description": "Application usage analytics and counters"
+    },
+    "/stats/{statId}/presence/{sessionId}": {
+      "schema": "PresenceSession",
+      "description": "Live active user session presence heartbeats"
+    }
+  }
+}

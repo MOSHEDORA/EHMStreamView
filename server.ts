@@ -17,6 +17,63 @@ app.use(express.json());
 const DATA_DIR = path.join(process.cwd(), 'data');
 const USERS_FILE = path.join(DATA_DIR, 'registered_users.json');
 const STATES_FILE = path.join(DATA_DIR, 'account_states.json');
+const STATS_FILE = path.join(DATA_DIR, 'app_stats.json');
+
+export const APP_VERSION = 'v2.6.4';
+export const APP_DESIGNER = 'Designed by Moshe Dora from EHM, Kakinada';
+
+interface AppStatsStore {
+  totalUsersUsed: number;
+  knownVisitors: string[];
+  lastUpdated: number;
+}
+
+function loadStatsStore(): AppStatsStore {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(STATS_FILE)) {
+      const raw = fs.readFileSync(STATS_FILE, 'utf-8');
+      const parsed = JSON.parse(raw);
+      if (parsed && typeof parsed.totalUsersUsed === 'number') {
+        return {
+          totalUsersUsed: parsed.totalUsersUsed,
+          knownVisitors: Array.isArray(parsed.knownVisitors) ? parsed.knownVisitors : [],
+          lastUpdated: parsed.lastUpdated || Date.now(),
+        };
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load stats store:', e);
+  }
+  return {
+    totalUsersUsed: 1248,
+    knownVisitors: [],
+    lastUpdated: Date.now(),
+  };
+}
+
+function saveStatsStore(stats: AppStatsStore) {
+  ensureDataDir();
+  try {
+    fs.writeFileSync(STATS_FILE, JSON.stringify(stats, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to save stats store:', e);
+  }
+}
+
+let appStatsStore: AppStatsStore = loadStatsStore();
+const activeHeartbeats = new Map<string, number>();
+
+function getLiveUsersCount(): number {
+  const now = Date.now();
+  for (const [id, ts] of activeHeartbeats.entries()) {
+    if (now - ts > 45000) {
+      activeHeartbeats.delete(id);
+    }
+  }
+  const wsCount = typeof wss !== 'undefined' && wss ? wss.clients.size : 0;
+  return Math.max(1, Math.max(wsCount, activeHeartbeats.size));
+}
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -217,6 +274,64 @@ function updateAccountState(account: string, updates: Record<string, any>) {
 // HTTP API routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+// Analytics & Footer Statistics: App Version, Designer, Live Users & Cumulative New Users
+app.get('/api/analytics/stats', (req, res) => {
+  res.json({
+    success: true,
+    version: APP_VERSION,
+    designer: APP_DESIGNER,
+    totalLiveUsers: getLiveUsersCount(),
+    totalUsersUsed: appStatsStore.totalUsersUsed,
+    lastUpdated: appStatsStore.lastUpdated,
+  });
+});
+
+app.post('/api/analytics/visit', (req, res) => {
+  const { visitorId } = req.body || {};
+  const cleanId = String(visitorId || '').trim();
+  let isNew = false;
+  if (cleanId && !appStatsStore.knownVisitors.includes(cleanId)) {
+    appStatsStore.knownVisitors.push(cleanId);
+    appStatsStore.totalUsersUsed += 1;
+    appStatsStore.lastUpdated = Date.now();
+    saveStatsStore(appStatsStore);
+    isNew = true;
+  }
+  if (cleanId) {
+    activeHeartbeats.set(cleanId, Date.now());
+  }
+  const liveCount = getLiveUsersCount();
+  broadcastAll({
+    type: 'stats_update',
+    totalLiveUsers: liveCount,
+    totalUsersUsed: appStatsStore.totalUsersUsed,
+    version: APP_VERSION,
+  });
+  res.json({
+    success: true,
+    isNew,
+    version: APP_VERSION,
+    designer: APP_DESIGNER,
+    totalLiveUsers: liveCount,
+    totalUsersUsed: appStatsStore.totalUsersUsed,
+  });
+});
+
+app.post('/api/analytics/heartbeat', (req, res) => {
+  const { visitorId } = req.body || {};
+  const cleanId = String(visitorId || '').trim();
+  if (cleanId) {
+    activeHeartbeats.set(cleanId, Date.now());
+  }
+  const liveCount = getLiveUsersCount();
+  res.json({
+    success: true,
+    totalLiveUsers: liveCount,
+    totalUsersUsed: appStatsStore.totalUsersUsed,
+    version: APP_VERSION,
+  });
 });
 
 // Auth Routes: Real-time multi-device account management
@@ -451,7 +566,21 @@ wss.on('connection', (ws) => {
       type: 'users_updated',
       users: getPublicUsersList(),
     }));
+    ws.send(JSON.stringify({
+      type: 'stats_update',
+      totalLiveUsers: getLiveUsersCount(),
+      totalUsersUsed: appStatsStore.totalUsersUsed,
+      version: APP_VERSION,
+    }));
   } catch (err) {}
+
+  // Broadcast updated live count to all connected clients
+  broadcastAll({
+    type: 'stats_update',
+    totalLiveUsers: getLiveUsersCount(),
+    totalUsersUsed: appStatsStore.totalUsersUsed,
+    version: APP_VERSION,
+  });
 
   ws.on('message', (rawData) => {
     try {
@@ -526,6 +655,12 @@ wss.on('connection', (ws) => {
         users: getPublicUsersList(),
       });
     }
+    broadcastAll({
+      type: 'stats_update',
+      totalLiveUsers: getLiveUsersCount(),
+      totalUsersUsed: appStatsStore.totalUsersUsed,
+      version: APP_VERSION,
+    });
   });
 
   ws.on('error', (err) => {

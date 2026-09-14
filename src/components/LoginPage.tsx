@@ -31,6 +31,7 @@ import {
   Monitor,
   Sliders,
 } from 'lucide-react';
+import { AppFooter } from './AppFooter';
 
 interface LoginPageProps {
   onLogin: (session: UserSession) => void;
@@ -826,10 +827,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({
         </div>
       </main>
 
-      {/* Footer */}
-      <footer className="border-t border-slate-800/80 px-6 py-3 text-center text-xs text-slate-400 bg-slate-950/80">
-        VerseVIEW &amp; BibleShow Pro · Dual-Language Bible &amp; Worship Presenter
-      </footer>
+      {/* Footer with Version, Designer Attribution, Live Users & New Users */}
+      <AppFooter deviceMode={deviceMode || 'desktop'} />
     </div>
   );
 };

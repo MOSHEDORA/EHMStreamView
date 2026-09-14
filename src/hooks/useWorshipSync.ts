@@ -1,27 +1,36 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { WorshipState } from '../types';
 import { DEFAULT_STATE } from '../data/defaultSettings';
+import { LiveSyncRelay, TransportMode, ConnectedDevice } from '../services/liveSyncRelay';
 import { saveRegisteredUsers } from '../data/authService';
 
-export function useWorshipSync(initialAccount: string = 'worship-main', clientType: 'operator' | 'display' | 'stage' = 'operator') {
+export function useWorshipSync(
+  initialAccount: string = 'worship-main',
+  clientType: 'operator' | 'display' | 'stage' = 'operator'
+) {
   const [account, setAccount] = useState<string>(() => {
     // Check URL parameters first
-    const params = new URLSearchParams(window.location.search);
-    const accParam = params.get('account');
-    if (accParam) return accParam.toLowerCase();
-    const stored = localStorage.getItem('worship_account');
-    return stored || initialAccount;
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const accParam = params.get('account');
+      if (accParam) return accParam.toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+      const stored = localStorage.getItem('worship_account');
+      if (stored) return stored.toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+    }
+    return initialAccount.toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
   });
 
   const [state, setState] = useState<WorshipState>(() => {
     try {
-      const cached = localStorage.getItem(`worship_state_${account}`);
-      if (cached) {
-        return {
-          ...DEFAULT_STATE,
-          ...JSON.parse(cached),
-          account,
-        };
+      if (typeof window !== 'undefined') {
+        const cached = localStorage.getItem(`worship_state_${account}`);
+        if (cached) {
+          return {
+            ...DEFAULT_STATE,
+            ...JSON.parse(cached),
+            account,
+          };
+        }
       }
     } catch (e) {}
     return {
@@ -32,67 +41,62 @@ export function useWorshipSync(initialAccount: string = 'worship-main', clientTy
 
   const [connectionStatus, setConnectionStatus] = useState<'connected' | 'connecting' | 'disconnected'>('connecting');
   const [connectedCount, setConnectedCount] = useState<number>(1);
-  const wsRef = useRef<WebSocket | null>(null);
-  const bcRef = useRef<BroadcastChannel | null>(null);
-  const reconnectTimeoutRef = useRef<any>(null);
-  const isLocalUpdateRef = useRef(false);
+  const [transportMode, setTransportMode] = useState<TransportMode>('connecting');
+  const [connectedDevices, setConnectedDevices] = useState<ConnectedDevice[]>([]);
+  const [pingLatency, setPingLatency] = useState<number | null>(null);
 
-  // Switch account
-  const changeAccount = useCallback((newAccount: string) => {
-    const clean = newAccount.trim().toLowerCase() || 'worship-main';
-    setAccount(clean);
-    localStorage.setItem('worship_account', clean);
+  const relayRef = useRef<LiveSyncRelay | null>(null);
 
-    // Update URL param without full reload
-    const url = new URL(window.location.href);
-    url.searchParams.set('account', clean);
-    window.history.replaceState({}, '', url.toString());
-
-    // Fetch account state immediately
-    fetch(`/api/state/${encodeURIComponent(clean)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && data.state) {
-          setState((prev) => ({ ...prev, ...data.state, account: clean }));
-        }
-      })
-      .catch(() => {});
-
-    // Reconnect socket to new room
-    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-      wsRef.current.send(JSON.stringify({
-        type: 'join',
-        account: clean,
-        clientType,
-      }));
-    }
-  }, [clientType]);
-
-  // Sync with initialAccount prop if it changes externally (e.g. user logs in or switches church)
+  // Initialize or reconfigure LiveSyncRelay when account or clientType changes
   useEffect(() => {
-    const cleanInitial = (initialAccount || '').trim().toLowerCase();
-    if (cleanInitial && cleanInitial !== account) {
-      changeAccount(cleanInitial);
-    }
-  }, [initialAccount, account, changeAccount]);
+    const relay = new LiveSyncRelay({
+      account,
+      clientType,
+      onStateReceived: (incomingState) => {
+        setState((prev) => ({
+          ...prev,
+          ...incomingState,
+          account,
+        }));
+      },
+      onCountUpdated: (count, devices) => {
+        setConnectedCount(count);
+        setConnectedDevices(devices);
+      },
+      onStatusChanged: (status, transport) => {
+        setConnectionStatus(status);
+        setTransportMode(transport);
+      },
+      onPongReceived: (latencyMs) => {
+        setPingLatency(latencyMs);
+      },
+    });
+
+    relayRef.current = relay;
+
+    return () => {
+      relay.destroy();
+      relayRef.current = null;
+    };
+  }, [account, clientType]);
 
   // Handle mobile wake up, tab switching, and network re-connection
   useEffect(() => {
     const handleReactivation = () => {
       if (document.visibilityState === 'visible' || navigator.onLine) {
+        // Attempt HTTP fetch if available
         fetch(`/api/state/${encodeURIComponent(account)}`)
           .then((res) => res.json())
           .then((data) => {
             if (data && data.state) {
-              setState((prev) => ({ ...prev, ...data.state }));
+              setState((prev) => ({ ...prev, ...data.state, account }));
             }
           })
           .catch(() => {});
 
-        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-          try {
-            if (wsRef.current) wsRef.current.close();
-          } catch (e) {}
+        // Request state from online peers via Cloud Relay
+        if (relayRef.current && clientType !== 'operator') {
+          relayRef.current.requestStateFromPeers();
         }
       }
     };
@@ -105,177 +109,83 @@ export function useWorshipSync(initialAccount: string = 'worship-main', clientTy
       window.removeEventListener('focus', handleReactivation);
       window.removeEventListener('online', handleReactivation);
     };
-  }, [account]);
-
-  // Setup BroadcastChannel for 0ms cross-tab synchronization
-  useEffect(() => {
-    const channelName = `worship_sync_channel_${account}`;
-    let bc: BroadcastChannel | null = null;
-
-    try {
-      if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-        bc = new BroadcastChannel(channelName);
-        bcRef.current = bc;
-        bc.onmessage = (event) => {
-          if (event.data && event.data.account === account && event.data.state) {
-            setState((prev) => ({
-              ...prev,
-              ...event.data.state,
-            }));
-          }
-        };
-      }
-    } catch (e) {
-      console.warn('BroadcastChannel not available:', e);
-    }
-
-    return () => {
-      if (bc) {
-        bc.close();
-        bcRef.current = null;
-      }
-    };
-  }, [account]);
-
-  // Connect WebSocket
-  useEffect(() => {
-    let isCancelled = false;
-
-    function connect() {
-      if (isCancelled) return;
-      setConnectionStatus('connecting');
-
-      const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const host = window.location.host;
-      const wsUrl = `${protocol}//${host}/ws`;
-
-      try {
-        const socket = new WebSocket(wsUrl);
-        wsRef.current = socket;
-
-        socket.onopen = () => {
-          if (isCancelled) {
-            socket.close();
-            return;
-          }
-          setConnectionStatus('connected');
-          socket.send(JSON.stringify({
-            type: 'join',
-            account,
-            clientType,
-          }));
-        };
-
-        socket.onmessage = (event) => {
-          try {
-            const data = JSON.parse(event.data);
-            if (data.type === 'init' || data.type === 'sync') {
-              if (data.state) {
-                isLocalUpdateRef.current = true;
-                setState((prev) => ({
-                  ...prev,
-                  ...data.state,
-                }));
-                if (data.state.connectedDisplaysCount !== undefined) {
-                  setConnectedCount(data.state.connectedDisplaysCount);
-                }
-              }
-            } else if (data.type === 'count_update') {
-              if (data.count !== undefined) {
-                setConnectedCount(data.count);
-              }
-            } else if (data.type === 'users_updated') {
-              if (Array.isArray(data.users)) {
-                saveRegisteredUsers(data.users);
-              }
-            }
-          } catch (e) {
-            console.error('Error parsing WS message:', e);
-          }
-        };
-
-        socket.onclose = () => {
-          if (!isCancelled) {
-            setConnectionStatus('disconnected');
-            // Try reconnect after 2 seconds
-            reconnectTimeoutRef.current = setTimeout(connect, 2000);
-          }
-        };
-
-        socket.onerror = (err) => {
-          console.warn('WS socket error:', err);
-          socket.close();
-        };
-      } catch (err) {
-        console.error('Failed to instantiate WebSocket:', err);
-        setConnectionStatus('disconnected');
-        reconnectTimeoutRef.current = setTimeout(connect, 3000);
-      }
-    }
-
-    connect();
-
-    // Heartbeat ping interval
-    const pingInterval = setInterval(() => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({ type: 'ping' }));
-      }
-    }, 20000);
-
-    return () => {
-      isCancelled = true;
-      clearInterval(pingInterval);
-      if (reconnectTimeoutRef.current) clearTimeout(reconnectTimeoutRef.current);
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-    };
   }, [account, clientType]);
 
-  // Update state helper (broadcasts to server and updates local optimistically)
-  const updateState = useCallback((updates: Partial<WorshipState>) => {
-    setState((prev) => {
-      const nextState = {
-        ...prev,
-        ...updates,
-        account,
-        lastUpdated: Date.now(),
-      };
+  // Switch church account
+  const changeAccount = useCallback((newAccount: string) => {
+    const clean = newAccount.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+    setAccount(clean);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('worship_account', clean);
 
-      try {
-        localStorage.setItem(`worship_state_${account}`, JSON.stringify(nextState));
-      } catch (e) {}
+      // Update URL param without full reload
+      const url = new URL(window.location.href);
+      url.searchParams.set('account', clean);
+      window.history.replaceState({}, '', url.toString());
+    }
 
-      // Broadcast to local tabs via BroadcastChannel (0ms latency)
-      if (bcRef.current) {
-        try {
-          bcRef.current.postMessage({
-            type: 'state_update',
-            account,
-            state: updates,
-          });
-        } catch (e) {}
-      }
+    // Switch relay to new topic
+    if (relayRef.current) {
+      relayRef.current.switchAccount(clean);
+    }
 
-      // Broadcast to WebSocket
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
-        wsRef.current.send(JSON.stringify({
-          type: 'update_state',
+    // Try fetching account state from server
+    fetch(`/api/state/${encodeURIComponent(clean)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.state) {
+          setState((prev) => ({ ...prev, ...data.state, account: clean }));
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Sync with initialAccount prop if it changes externally
+  useEffect(() => {
+    const cleanInitial = (initialAccount || '').trim().toLowerCase().replace(/[^a-z0-9_-]/g, '');
+    if (cleanInitial && cleanInitial !== account) {
+      changeAccount(cleanInitial);
+    }
+  }, [initialAccount, account, changeAccount]);
+
+  // Update state helper (broadcasts across all transports: 0ms local, Cloud Relay, WS)
+  const updateState = useCallback(
+    (updates: Partial<WorshipState>) => {
+      setState((prev) => {
+        const nextState = {
+          ...prev,
+          ...updates,
           account,
-          state: updates,
-        }));
-      } else {
-        // Fallback HTTP POST
+          lastUpdated: Date.now(),
+        };
+
+        try {
+          localStorage.setItem(`worship_state_${account}`, JSON.stringify(nextState));
+        } catch (e) {}
+
+        // Broadcast to LiveSyncRelay (handles local tabs, Cloud SSE PubSub, and Node WS)
+        if (relayRef.current) {
+          relayRef.current.broadcastState(updates);
+        }
+
+        // Fallback HTTP POST if available
         fetch(`/api/state/${encodeURIComponent(account)}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(updates),
-        }).catch((err) => console.warn('HTTP fallback sync error:', err));
-      }
+        }).catch(() => {});
 
-      return nextState;
-    });
-  }, [account]);
+        return nextState;
+      });
+    },
+    [account]
+  );
+
+  const testPing = useCallback(() => {
+    if (relayRef.current) {
+      relayRef.current.sendPing();
+    }
+  }, []);
 
   return {
     account,
@@ -284,5 +194,9 @@ export function useWorshipSync(initialAccount: string = 'worship-main', clientTy
     updateState,
     connectionStatus,
     connectedCount,
+    transportMode,
+    connectedDevices,
+    pingLatency,
+    testPing,
   };
 }

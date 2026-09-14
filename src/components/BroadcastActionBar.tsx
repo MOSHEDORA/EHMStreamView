@@ -2,6 +2,8 @@ import React, { useState } from 'react';
 import { WorshipState, UserSession, DeviceMode } from '../types';
 import { AccountLoginModal } from './AccountLoginModal';
 import { OutputUrlsModal } from './OutputUrlsModal';
+import { SyncDiagnosticsModal } from './SyncDiagnosticsModal';
+import { TransportMode, ConnectedDevice } from '../services/liveSyncRelay';
 import {
   Wifi,
   WifiOff,
@@ -29,6 +31,10 @@ interface BroadcastActionBarProps {
   account: string;
   connectionStatus: 'connected' | 'connecting' | 'disconnected';
   connectedCount: number;
+  transportMode?: TransportMode;
+  connectedDevices?: ConnectedDevice[];
+  pingLatency?: number | null;
+  onTestPing?: () => void;
   userSession: UserSession;
   deviceMode?: DeviceMode;
   onChangeDevice?: () => void;
@@ -47,6 +53,10 @@ export const BroadcastActionBar: React.FC<BroadcastActionBarProps> = ({
   account,
   connectionStatus,
   connectedCount,
+  transportMode,
+  connectedDevices,
+  pingLatency,
+  onTestPing,
   userSession,
   deviceMode,
   onChangeDevice,
@@ -62,6 +72,7 @@ export const BroadcastActionBar: React.FC<BroadcastActionBarProps> = ({
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isAlertModalOpen, setIsAlertModalOpen] = useState(false);
   const [isOutputUrlsModalOpen, setIsOutputUrlsModalOpen] = useState(false);
+  const [isSyncModalOpen, setIsSyncModalOpen] = useState(false);
   const [alertInput, setAlertInput] = useState(state.alertText || '');
   const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
 
@@ -145,18 +156,35 @@ export const BroadcastActionBar: React.FC<BroadcastActionBarProps> = ({
           )}
 
           {/* Real-time Connection Indicator */}
-          <div className="hidden md:flex items-center gap-1 text-[11px] text-slate-400 pl-1 font-mono">
-            {connectionStatus === 'connected' ? (
-              <span className="flex items-center gap-1 text-emerald-400 font-semibold" title="Live sync channel active">
-                <Wifi className="w-3 h-3" />
-                <span>{connectedCount} display{connectedCount > 1 ? 's' : ''}</span>
-              </span>
-            ) : (
-              <span className="flex items-center gap-1 text-amber-400">
-                <WifiOff className="w-3 h-3" />
-                <span>Syncing</span>
-              </span>
-            )}
+          <div className="flex items-center gap-1 pl-1">
+            <button
+              id="topbar-sync-status-btn"
+              type="button"
+              onClick={() => setIsSyncModalOpen(true)}
+              className={`flex items-center gap-1.5 px-2 py-0.5 rounded-lg border text-[11px] font-mono transition-all cursor-pointer ${
+                connectionStatus === 'connected'
+                  ? 'bg-emerald-950/50 border-emerald-800/60 text-emerald-400 hover:bg-emerald-900/60'
+                  : 'bg-amber-950/50 border-amber-800/60 text-amber-400 hover:bg-amber-900/60'
+              }`}
+              title="Live Sync Channel Active. Click to view connected devices & channel telemetry."
+            >
+              {connectionStatus === 'connected' ? (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                  <Wifi className="w-3 h-3" />
+                  <span className="font-semibold">{connectedCount} display{connectedCount !== 1 ? 's' : ''}</span>
+                  <span className="hidden lg:inline text-[9px] px-1 py-0.2 rounded bg-emerald-900/80 border border-emerald-700/80 text-emerald-300 uppercase font-bold">
+                    {transportMode === 'websocket' ? 'WS' : 'Cloud Sync'}
+                  </span>
+                </>
+              ) : (
+                <>
+                  <span className="w-2 h-2 rounded-full bg-amber-400 animate-ping" />
+                  <WifiOff className="w-3 h-3" />
+                  <span>Syncing...</span>
+                </>
+              )}
+            </button>
           </div>
           {/* Device Profile Switcher */}
           {deviceMode && (
@@ -403,6 +431,19 @@ export const BroadcastActionBar: React.FC<BroadcastActionBarProps> = ({
         isOpen={isOutputUrlsModalOpen}
         onClose={() => setIsOutputUrlsModalOpen(false)}
         account={account}
+      />
+
+      {/* Live Sync Channel Diagnostics Modal */}
+      <SyncDiagnosticsModal
+        isOpen={isSyncModalOpen}
+        onClose={() => setIsSyncModalOpen(false)}
+        account={account}
+        connectionStatus={connectionStatus}
+        transportMode={transportMode}
+        connectedCount={connectedCount}
+        connectedDevices={connectedDevices}
+        pingLatency={pingLatency}
+        onTestPing={onTestPing}
       />
     </header>
   );

@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() > 0 && id.size() <= 128;
+    }
+
+    // User profiles
+    match /users/{userId} {
+      allow read: if isSignedIn();
+      allow create, update: if isOwner(userId);
+      allow delete: if false;
+    }
+
+    // Church organization accounts
+    match /accounts/{accountId} {
+      allow get, list: if true; // Public read allows displays & OBS to resolve church profiles
+      allow create, update: if isSignedIn() && isValidId(accountId);
+      allow delete: if false;
+
+      // Real-time presentation state: Projectors & OBS read in real-time
+      match /live/{docId} {
+        allow get, list: if true;
+        allow create, update: if isSignedIn() || request.resource.data.accountId == accountId;
+        allow delete: if false;
+      }
+    }
+
+    // Global analytics and live presence counters
+    match /stats/{statId} {
+      allow get, list: if true;
+      allow create, update: if true;
+      allow delete: if false;
+
+      match /presence/{sessionId} {
+        allow get, list: if true;
+        allow create, update, delete: if true;
+      }
+    }
+  }
+}

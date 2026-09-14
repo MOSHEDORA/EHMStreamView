@@ -15,6 +15,7 @@ import {
   Layers,
   Zap,
 } from 'lucide-react';
+import { AppFooter } from './AppFooter';
 
 interface DeviceSelectionPageProps {
   onDeviceSelected: (mode: DeviceMode) => void;
@@ -413,7 +414,7 @@ export const DeviceSelectionPage: React.FC<DeviceSelectionPageProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="relative z-10 max-w-5xl mx-auto w-full text-center py-4 border-t border-slate-800/80 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="relative z-10 max-w-5xl mx-auto w-full text-center py-2 border-t border-slate-800/80 text-xs text-slate-500 flex flex-col sm:flex-row items-center justify-between gap-2">
         <div className="flex items-center gap-2">
           <ShieldCheck className="w-4 h-4 text-emerald-400" />
           <span>Cross-Device Cloud Sync Enabled</span>
@@ -422,6 +423,9 @@ export const DeviceSelectionPage: React.FC<DeviceSelectionPageProps> = ({
           You can switch device mode anytime inside the operator console or sign in screen.
         </div>
       </footer>
+
+      {/* Global App Footer */}
+      <AppFooter deviceMode={selectedMode} className="relative z-10 -mx-4 sm:-mx-6 lg:-mx-8 -mb-4 sm:-mb-6 lg:-mb-8 mt-4" />
     </div>
   );
 };

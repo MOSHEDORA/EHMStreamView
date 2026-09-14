@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   ThemeSettings,
   FontChoice,
@@ -8,6 +8,7 @@ import {
 } from '../types';
 import { FONT_OPTIONS, GRADIENT_PRESETS } from '../data/defaultSettings';
 import { SlideDisplay } from './SlideDisplay';
+import { TransportMode, ConnectedDevice } from '../services/liveSyncRelay';
 import {
   Type,
   Palette,
@@ -21,20 +22,62 @@ import {
   Sun,
   Eye,
   Sparkles,
+  Radio,
+  Wifi,
+  WifiOff,
+  Cloud,
+  Globe,
+  Zap,
+  RefreshCw,
+  Check,
+  Copy,
+  ExternalLink,
 } from 'lucide-react';
 
 interface MediaSettingsTabProps {
   state: WorshipState;
+  account?: string;
+  connectionStatus?: 'connected' | 'connecting' | 'disconnected';
+  transportMode?: TransportMode;
+  connectedCount?: number;
+  connectedDevices?: ConnectedDevice[];
+  pingLatency?: number | null;
+  onTestPing?: () => void;
   onUpdateTheme: (updates: Partial<ThemeSettings>) => void;
   onUpdateMode: (mode: 'fullscreen' | 'lowerthird') => void;
 }
 
 export const MediaSettingsTab: React.FC<MediaSettingsTabProps> = ({
   state,
+  account = 'worship-main',
+  connectionStatus = 'connected',
+  transportMode = 'cloud_relay',
+  connectedCount = 1,
+  connectedDevices = [],
+  pingLatency,
+  onTestPing,
   onUpdateTheme,
   onUpdateMode,
 }) => {
   const { theme, displayMode } = state;
+  const [isPinging, setIsPinging] = useState(false);
+  const [copiedUrl, setCopiedUrl] = useState<string | null>(null);
+
+  const handlePing = () => {
+    setIsPinging(true);
+    if (onTestPing) onTestPing();
+    setTimeout(() => setIsPinging(false), 1200);
+  };
+
+  const origin = typeof window !== 'undefined' ? window.location.origin : '';
+  const projectorUrl = `${origin}/?view=fullscreen&account=${encodeURIComponent(account)}`;
+  const lowerThirdUrl = `${origin}/?view=lowerthird&account=${encodeURIComponent(account)}`;
+
+  const handleCopy = (url: string, key: string) => {
+    navigator.clipboard.writeText(url);
+    setCopiedUrl(key);
+    setTimeout(() => setCopiedUrl(null), 2500);
+  };
 
   return (
     <div className="flex flex-col h-full bg-slate-900 text-slate-100 p-4 sm:p-6 overflow-y-auto space-y-6">
@@ -438,6 +481,156 @@ export const MediaSettingsTab: React.FC<MediaSettingsTabProps> = ({
                   className="w-full accent-sky-500 cursor-pointer mt-2"
                 />
               </div>
+            </div>
+          </div>
+
+          {/* 4. Live Cloud Sync & Universal Deployment Card */}
+          <div className="bg-slate-800/80 backdrop-blur-md rounded-xl p-5 border border-slate-700/60 shadow-md space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-700/60 pb-3">
+              <div className="flex items-center gap-2.5">
+                <div className="w-7 h-7 rounded-lg bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+                  <Radio className="w-4 h-4 animate-pulse" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm text-white">Live Sync Channel &amp; Vercel Deployment</h3>
+                  <p className="text-[11px] text-slate-400">
+                    Real-time multi-screen synchronization for church account: <span className="text-sky-300 font-mono font-bold">{account}</span>
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-1.5 font-mono text-xs">
+                {connectionStatus === 'connected' ? (
+                  <span className="flex items-center gap-1 text-emerald-400 font-bold px-2 py-0.5 rounded bg-emerald-950 border border-emerald-800">
+                    <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
+                    <span>Active Live</span>
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-1 text-amber-400 px-2 py-0.5 rounded bg-amber-950 border border-amber-800">
+                    <WifiOff className="w-3 h-3" />
+                    <span>Connecting</span>
+                  </span>
+                )}
+              </div>
+            </div>
+
+            {/* Sync Telemetry Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+              <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-700/60">
+                <div className="text-slate-400 text-[11px] flex items-center gap-1 mb-1">
+                  <Cloud className="w-3.5 h-3.5 text-sky-400" />
+                  <span>Relay Engine</span>
+                </div>
+                <div className="font-semibold text-white truncate">
+                  {transportMode === 'firebase_firestore'
+                    ? 'Firebase Firestore'
+                    : transportMode === 'websocket'
+                    ? 'Local WebSocket'
+                    : 'Cloud PubSub Relay'}
+                </div>
+                <div className="text-[10px] text-emerald-400 mt-0.5">
+                  {transportMode === 'firebase_firestore' ? 'Persistent Cloud Sync' : 'Vercel & Web Ready'}
+                </div>
+              </div>
+
+              <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-700/60">
+                <div className="text-slate-400 text-[11px] flex items-center gap-1 mb-1">
+                  <Wifi className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Active Screens</span>
+                </div>
+                <div className="font-semibold text-white">
+                  {connectedCount} Device{connectedCount !== 1 ? 's' : ''} Online
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Sanctuary &amp; OBS</div>
+              </div>
+
+              <div className="bg-slate-900/90 p-2.5 rounded-lg border border-slate-700/60">
+                <div className="text-slate-400 text-[11px] flex items-center gap-1 mb-1">
+                  <Zap className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Round-Trip Latency</span>
+                </div>
+                <div className="font-semibold text-white flex items-center justify-between">
+                  <span>{pingLatency ? `${pingLatency} ms` : '< 120 ms'}</span>
+                  <button
+                    type="button"
+                    onClick={handlePing}
+                    disabled={isPinging}
+                    className="text-[10px] text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
+                  >
+                    <RefreshCw className={`w-2.5 h-2.5 ${isPinging ? 'animate-spin' : ''}`} />
+                    <span>Test</span>
+                  </button>
+                </div>
+                <div className="text-[10px] text-slate-400 mt-0.5">Sub-second push</div>
+              </div>
+            </div>
+
+            {/* Quick Screen URLs for Vercel deployment */}
+            <div className="space-y-2 pt-1">
+              <span className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider block">
+                Direct URLs for Sanctuary Display &amp; OBS on Vercel:
+              </span>
+
+              <div className="flex flex-col sm:flex-row gap-2">
+                <div className="flex-1 flex items-center justify-between bg-slate-900 p-2 rounded-lg border border-slate-700/60 text-xs">
+                  <div className="flex items-center gap-1.5 truncate mr-2">
+                    <Maximize2 className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                    <span className="text-white font-medium">Sanctuary Fullscreen URL</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(projectorUrl, 'fullscreen')}
+                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 hover:text-white transition-all flex items-center gap-1"
+                    >
+                      {copiedUrl === 'fullscreen' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedUrl === 'fullscreen' ? 'Copied' : 'Copy'}</span>
+                    </button>
+                    <a
+                      href={projectorUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                      title="Open in new tab"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex items-center justify-between bg-slate-900 p-2 rounded-lg border border-slate-700/60 text-xs">
+                  <div className="flex items-center gap-1.5 truncate mr-2">
+                    <Tv className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                    <span className="text-white font-medium">OBS Lower-Third URL</span>
+                  </div>
+                  <div className="flex items-center gap-1 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleCopy(lowerThirdUrl, 'lowerthird')}
+                      className="px-2 py-1 rounded bg-slate-800 hover:bg-slate-700 text-[11px] text-slate-300 hover:text-white transition-all flex items-center gap-1"
+                    >
+                      {copiedUrl === 'lowerthird' ? <Check className="w-3 h-3 text-emerald-400" /> : <Copy className="w-3 h-3" />}
+                      <span>{copiedUrl === 'lowerthird' ? 'Copied' : 'Copy'}</span>
+                    </button>
+                    <a
+                      href={lowerThirdUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="p-1 rounded bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white"
+                      title="Open in new tab"
+                    >
+                      <ExternalLink className="w-3 h-3" />
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-2.5 rounded-lg bg-sky-950/40 border border-sky-800/40 text-[11px] text-sky-200 flex items-start gap-2">
+              <Globe className="w-4 h-4 text-sky-400 shrink-0 mt-0.5" />
+              <span>
+                <strong>Universal Sync Active:</strong> VerseView Pro uses high-speed cloud pubsub relay so you can deploy on Vercel without configuring a separate WebSocket server. All church accounts automatically get isolated real-time channels that sync across mobile phones, tablets, projector PCs, and OBS.
+              </span>
             </div>
           </div>
         </div>

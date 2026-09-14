@@ -11,6 +11,7 @@ import { DualDisplayView } from './components/DualDisplayView';
 import { LoginPage } from './components/LoginPage';
 import { DeviceSelectionPage } from './components/DeviceSelectionPage';
 import { LiveMonitorDesk } from './components/LiveMonitorDesk';
+import { AppFooter } from './components/AppFooter';
 import { SlideContent, UserSession, DeviceMode } from './types';
 import {
   getStoredDeviceMode,
@@ -175,6 +176,10 @@ function OperatorConsole({
     updateState,
     connectionStatus,
     connectedCount,
+    transportMode,
+    connectedDevices,
+    pingLatency,
+    testPing,
   } = useWorshipSync(currentAccount, 'operator');
 
   const [activeTab, setActiveTab] = useState<'dashboard' | 'lyrics' | 'bible' | 'settings'>('lyrics');
@@ -264,6 +269,10 @@ function OperatorConsole({
         account={account}
         connectionStatus={connectionStatus}
         connectedCount={connectedCount}
+        transportMode={transportMode}
+        connectedDevices={connectedDevices}
+        pingLatency={pingLatency}
+        onTestPing={testPing}
         userSession={session}
         deviceMode={deviceMode}
         onChangeDevice={onChangeDevice}
@@ -456,6 +465,13 @@ function OperatorConsole({
             {activeTab === 'settings' && (
               <MediaSettingsTab
                 state={state}
+                account={account}
+                connectionStatus={connectionStatus}
+                transportMode={transportMode}
+                connectedCount={connectedCount}
+                connectedDevices={connectedDevices}
+                pingLatency={pingLatency}
+                onTestPing={testPing}
                 onUpdateTheme={handleUpdateTheme}
                 onUpdateMode={handleUpdateMode}
               />
@@ -558,6 +574,9 @@ function OperatorConsole({
           </div>
         </div>
       )}
+
+      {/* Global Application Footer with App Version, Designer Attribution, Live Users & Total New Users */}
+      <AppFooter deviceMode={deviceMode} churchName={account} />
     </div>
   );
 }
