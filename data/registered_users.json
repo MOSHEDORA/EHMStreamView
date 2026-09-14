@@ -1,0 +1,22 @@
+[
+  {
+    "id": "user-moshe",
+    "name": "Moshe Ravi",
+    "email": "moshe.ravikampadu@gmail.com",
+    "password": "worship2026",
+    "churchName": "Grace Community Church",
+    "role": "Lead AV Director",
+    "accountSlug": "mosheravikampadu",
+    "createdAt": 1710000000000
+  },
+  {
+    "id": "user-faith-church",
+    "name": "Worship Leader",
+    "email": "leader@church.org",
+    "password": "password123",
+    "churchName": "Faith Fellowship Church",
+    "role": "Worship Director",
+    "accountSlug": "faithchurch",
+    "createdAt": 1710000000000
+  }
+]
