@@ -62,7 +62,11 @@ export function getEmailAuthErrorMessage(error: any, action: 'sign in' | 'regist
   if (error?.code === 'auth/operation-not-allowed' || errorMessage.includes('PASSWORD_LOGIN_DISABLED')) {
     return `Email/password ${action} is disabled for this Firebase project. Enable Email/Password in Firebase Console > Authentication > Sign-in method.`;
   }
-  if (error?.code === 'auth/invalid-credential' || error?.code === 'auth/wrong-password') {
+  if (
+    error?.code === 'auth/invalid-credential' ||
+    error?.code === 'auth/wrong-password' ||
+    error?.code === 'auth/user-not-found'
+  ) {
     return 'The email or password is incorrect.';
   }
   if (error?.code === 'auth/email-already-in-use') {
@@ -150,27 +154,25 @@ export async function signInWithEmail(email: string, pass: string, desiredAccoun
   let role = 'operator';
   let churchName = `${user.displayName || user.email?.split('@')[0] || 'Worship'} Ministry`;
 
-  // Auth is sufficient to sign in. Firestore profile data enriches the session
-  // when available, but an unavailable database must not block the operator.
-  try {
-    const snap = await withFirebaseTimeout(getDoc(userRef), 'User profile loading');
-    if (snap.exists()) {
-      const p = snap.data() as UserProfileRecord;
-      accountName = desiredAccount || p.accountName || defaultAcc;
-      role = p.role || 'operator';
-    } else {
-      await withFirebaseTimeout(setDoc(userRef, {
-        uid: user.uid,
-        email: user.email || '',
-        displayName: user.displayName || user.email?.split('@')[0] || 'Operator',
-        accountName,
-        role,
-        updatedAt: new Date().toISOString(),
-      }), 'User profile creation');
+  // Auth is sufficient to sign in. Hydrate Firestore profile data in the
+  // background so database availability never delays a valid login.
+  void (async () => {
+    try {
+      const snap = await withFirebaseTimeout(getDoc(userRef), 'User profile loading');
+      if (!snap.exists()) {
+        await withFirebaseTimeout(setDoc(userRef, {
+          uid: user.uid,
+          email: user.email || '',
+          displayName: user.displayName || user.email?.split('@')[0] || 'Operator',
+          accountName,
+          role,
+          updatedAt: new Date().toISOString(),
+        }), 'User profile creation');
+      }
+    } catch (profileError) {
+      console.warn('Firestore profile unavailable; continuing with Firebase Auth session:', profileError);
     }
-  } catch (profileError) {
-    console.warn('Firestore profile unavailable; continuing with Firebase Auth session:', profileError);
-  }
+  })();
 
   return {
     accountName,
