@@ -1,7 +1,6 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { WORSHIP_SONGS } from '../data/lyricsData';
 import {
-  loadAccountSongsFromFirestore,
   saveSongToFirestore,
   subscribeToAccountSongs,
 } from '../services/firebase';
@@ -71,26 +70,54 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
     }
     return WORSHIP_SONGS;
   });
+  const [songSyncStatus, setSongSyncStatus] = useState<'syncing' | 'synced' | 'error'>('syncing');
+  const songSyncInitialized = useRef(false);
 
   useEffect(() => {
     let cancelled = false;
-    const customSongs = songs.filter((song) => song.id.startsWith('custom-song-'));
+    songSyncInitialized.current = false;
+    setSongSyncStatus('syncing');
+
+    const readLocalSongs = (): Song[] => {
+      try {
+        const saved = localStorage.getItem(`worship_custom_songs_${account}`)
+          || localStorage.getItem('worship_custom_songs');
+        const parsed = saved ? JSON.parse(saved) : [];
+        return Array.isArray(parsed) ? parsed.filter((song) => song?.id && song?.title) : [];
+      } catch {
+        return [];
+      }
+    };
 
     const unsubscribe = subscribeToAccountSongs(account, (remoteSongs) => {
       if (cancelled) return;
-      setSongs([...WORSHIP_SONGS, ...remoteSongs]);
-    });
-
-    loadAccountSongsFromFirestore(account)
-      .then((remoteSongs) => {
-        if (cancelled || remoteSongs.length === 0) return;
-        setSongs([...WORSHIP_SONGS, ...remoteSongs]);
-      })
-      .catch(() => {});
-
-    // Migrate songs created before account-level cloud sync was enabled.
-    customSongs.forEach((song) => {
-      saveSongToFirestore(account, song).catch(() => {});
+      const applyRemoteSongs = async () => {
+        if (remoteSongs.length === 0 && !songSyncInitialized.current) {
+          const localSongs = readLocalSongs();
+          if (localSongs.length > 0) {
+            const migrationResults = await Promise.all(
+              localSongs.map((song) => saveSongToFirestore(account, song))
+            );
+            if (migrationResults.some((saved) => !saved)) {
+              if (!cancelled) setSongSyncStatus('error');
+              return;
+            }
+          }
+          if (!cancelled) {
+            setSongs([...WORSHIP_SONGS, ...localSongs]);
+            setSongSyncStatus('synced');
+          }
+        } else {
+          if (!cancelled) {
+            setSongs([...WORSHIP_SONGS, ...remoteSongs]);
+            setSongSyncStatus('synced');
+          }
+        }
+        songSyncInitialized.current = true;
+      };
+      void applyRemoteSongs();
+    }, () => {
+      if (!cancelled) setSongSyncStatus('error');
     });
 
     return () => {
@@ -453,7 +480,8 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
       setSelectedSongId(editingSongId);
       const customList = updated.filter((s) => s.id.startsWith('custom-song-'));
       localStorage.setItem(customSongsStorageKey, JSON.stringify(customList));
-      saveSongToFirestore(account, updated.find((song) => song.id === editingSongId)!).catch(() => {});
+      saveSongToFirestore(account, updated.find((song) => song.id === editingSongId)!)
+        .then((saved) => setSongSyncStatus(saved ? 'synced' : 'error'));
     } else {
       const created: Song = {
         id: `custom-song-${Date.now()}`,
@@ -469,7 +497,8 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
 
       const customList = updated.filter((s) => s.id.startsWith('custom-song-'));
       localStorage.setItem(customSongsStorageKey, JSON.stringify(customList));
-      saveSongToFirestore(account, created).catch(() => {});
+      saveSongToFirestore(account, created)
+        .then((saved) => setSongSyncStatus(saved ? 'synced' : 'error'));
     }
 
     // Reset & close modal
@@ -502,6 +531,19 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
         </div>
 
         <div className="flex items-center gap-3">
+          <span
+            className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1 text-[11px] font-semibold ${
+              songSyncStatus === 'synced'
+                ? 'border-emerald-800/70 bg-emerald-950/50 text-emerald-300'
+                : songSyncStatus === 'error'
+                ? 'border-rose-800/70 bg-rose-950/50 text-rose-300'
+                : 'border-amber-800/70 bg-amber-950/50 text-amber-300'
+            }`}
+            title={`Song library for account ${account}`}
+          >
+            <span className="h-1.5 w-1.5 rounded-full bg-current" />
+            {songSyncStatus === 'synced' ? 'Firebase synced' : songSyncStatus === 'error' ? 'Sync failed' : 'Syncing library...'}
+          </span>
           {/* Output Mode selector */}
           <div className="flex items-center gap-2 bg-slate-950/80 p-1.5 rounded-lg border border-slate-700/80">
             <span className="text-xs font-semibold text-slate-400 px-2">Project as:</span>

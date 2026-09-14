@@ -515,7 +515,8 @@ export async function loadAccountSongsFromFirestore(accountId: string): Promise<
 
 export function subscribeToAccountSongs(
   accountId: string,
-  onSongsUpdate: (songs: Song[]) => void
+  onSongsUpdate: (songs: Song[]) => void,
+  onError?: (error: Error) => void
 ): Unsubscribe {
   const cleanAccount = (accountId || 'worship-main').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
   const songsColRef = collection(db, 'accounts', cleanAccount, 'songs');
@@ -543,6 +544,7 @@ export function subscribeToAccountSongs(
     },
     (err) => {
       console.warn('Songs Firestore subscription error:', err);
+      onError?.(err);
     }
   );
 }
