@@ -122,8 +122,21 @@ app.get('/api/accounts', (req, res) => {
 
 const server = http.createServer(app);
 
-// WebSocket Server attached on /ws
-const wss = new WebSocketServer({ server, path: '/ws' });
+// WebSocket Server in "noServer" mode so we can share the HTTP server with
+// Vite's HMR websocket. Upgrade requests are routed manually below: only
+// requests to `/ws` are handled here, everything else (e.g. Vite HMR) is left
+// for other upgrade listeners. This avoids the `ws` library aborting Vite's
+// HMR handshake, which surfaced as "WebSocket closed without opened".
+const wss = new WebSocketServer({ noServer: true });
+
+server.on('upgrade', (req, socket, head) => {
+  const { pathname } = new URL(req.url || '/', 'http://localhost');
+  if (pathname === '/ws') {
+    wss.handleUpgrade(req, socket, head, (ws) => {
+      wss.emit('connection', ws, req);
+    });
+  }
+});
 
 interface ClientMeta {
   account: string;
@@ -224,7 +237,12 @@ wss.on('connection', (ws) => {
 async function initServer() {
   if (process.env.NODE_ENV !== 'production') {
     const vite = await createViteServer({
-      server: { middlewareMode: true, hmr: false },
+      server: {
+        middlewareMode: true,
+        // Run Vite's HMR websocket over our existing HTTP server. Vite handles
+        // only the `vite-hmr` subprotocol upgrade and ignores our `/ws` socket.
+        hmr: process.env.DISABLE_HMR === 'true' ? false : { server },
+      },
       appType: 'spa',
     });
     app.use(vite.middlewares);
