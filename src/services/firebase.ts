@@ -225,6 +225,7 @@ export async function saveWorshipStateToFirestore(accountId: string, state: Wors
       accountId,
       currentSlide: state.currentSlide || null,
       nextSlide: state.nextSlide || null,
+      lastUpdated: state.lastUpdated || Date.now(),
       displayMode: state.displayMode || 'fullscreen',
       isBlackout: Boolean(state.isBlackout),
       isClearText: Boolean(state.isClearText),
@@ -264,6 +265,7 @@ export function subscribeToFirestoreWorshipState(
         onStateUpdate({
           currentSlide: data.currentSlide || null,
           nextSlide: data.nextSlide || null,
+          lastUpdated: Number(data.lastUpdated || Date.parse(data.updatedAt || '') || 0),
           displayMode: data.displayMode || 'fullscreen',
           isBlackout: Boolean(data.isBlackout),
           isClearText: Boolean(data.isClearText),
@@ -294,6 +296,7 @@ export async function fetchInitialFirestoreWorshipState(accountId: string): Prom
       return {
         currentSlide: data.currentSlide || null,
         nextSlide: data.nextSlide || null,
+        lastUpdated: Number(data.lastUpdated || Date.parse(data.updatedAt || '') || 0),
         displayMode: data.displayMode || 'fullscreen',
         isBlackout: Boolean(data.isBlackout),
         isClearText: Boolean(data.isClearText),

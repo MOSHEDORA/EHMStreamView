@@ -107,7 +107,11 @@ export function useWorshipSync(
                 if (incomingTimestamp) {
                   lastAppliedStateRef.current = incomingTimestamp;
                 }
-                return { ...prev, ...data.state, account };
+                const nextState = { ...prev, ...data.state, account };
+                try {
+                  localStorage.setItem(`worship_state_${account}`, JSON.stringify(nextState));
+                } catch (e) {}
+                return nextState;
               });
             }
           })
