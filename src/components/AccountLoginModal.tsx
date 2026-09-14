@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { UserSession } from '../types';
 import {
   signInWithEmail,
+  sendEmailPasswordReset,
   registerWithEmail,
   getEmailAuthErrorMessage,
 } from '../services/firebase';
@@ -71,6 +72,21 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
       onClose();
     } catch (err: any) {
       setErrorMsg(getEmailAuthErrorMessage(err, 'sign in'));
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setErrorMsg('');
+    setErrorType(null);
+    setIsSubmitting(true);
+    try {
+      await sendEmailPasswordReset(email);
+      setErrorMsg('If an account exists for this email, a password reset link has been sent.');
+      setErrorType('reset_sent');
+    } catch (err: any) {
+      setErrorMsg(getEmailAuthErrorMessage(err, 'sign in'));
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -153,6 +169,14 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
                 <div className="text-xs text-slate-400">
                   {currentSession.operatorName} · Room: #{currentSession.accountName}
                 </div>
+                <button
+                  type="button"
+                  onClick={handlePasswordReset}
+                  disabled={isSubmitting}
+                  className="mt-1.5 text-[11px] font-semibold text-sky-400 hover:text-sky-300 disabled:opacity-50"
+                >
+                  Reset password
+                </button>
               </div>
             </div>
 

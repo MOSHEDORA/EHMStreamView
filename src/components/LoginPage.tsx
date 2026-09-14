@@ -24,7 +24,12 @@ import {
   Sliders,
 } from 'lucide-react';
 import { AppFooter } from './AppFooter';
-import { getEmailAuthErrorMessage, signInWithEmail, registerWithEmail } from '../services/firebase';
+import {
+  getEmailAuthErrorMessage,
+  sendEmailPasswordReset,
+  signInWithEmail,
+  registerWithEmail,
+} from '../services/firebase';
 
 interface LoginPageProps {
   onLogin: (session: UserSession) => void;
@@ -98,6 +103,21 @@ export const LoginPage: React.FC<LoginPageProps> = ({
       }, 350);
     } catch (err: any) {
       setErrorMsg(getEmailAuthErrorMessage(err, 'sign in'));
+      setIsSubmitting(false);
+    }
+  };
+
+  const handlePasswordReset = async () => {
+    setErrorMsg('');
+    setErrorType(null);
+    setSuccessMsg('');
+    setIsSubmitting(true);
+    try {
+      await sendEmailPasswordReset(loginEmail);
+      setSuccessMsg('If an account exists for this email, a password reset link has been sent.');
+    } catch (err: any) {
+      setErrorMsg(getEmailAuthErrorMessage(err, 'sign in'));
+    } finally {
       setIsSubmitting(false);
     }
   };
@@ -321,6 +341,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({
                       className="w-full bg-slate-950 border border-slate-700 rounded-xl pl-10 pr-3 py-2.5 text-sm text-white placeholder-slate-600 focus:outline-none focus:ring-2 focus:ring-sky-500 font-medium"
                     />
                   </div>
+                  <button
+                    type="button"
+                    onClick={handlePasswordReset}
+                    disabled={isSubmitting}
+                    className="mt-1.5 text-[11px] font-semibold text-sky-400 hover:text-sky-300 disabled:opacity-50"
+                  >
+                    Reset password
+                  </button>
                 </div>
 
                 {/* Password */}

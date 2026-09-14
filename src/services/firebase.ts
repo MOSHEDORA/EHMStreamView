@@ -2,6 +2,7 @@ import { initializeApp, getApps, getApp, FirebaseApp } from 'firebase/app';
 import {
   getAuth,
   signInWithEmailAndPassword,
+  sendPasswordResetEmail,
   createUserWithEmailAndPassword,
   signOut,
   User,
@@ -174,6 +175,19 @@ export async function signInWithEmail(email: string, pass: string, desiredAccoun
     isLoggedIn: true,
     loginTime: Date.now(),
   };
+}
+
+export async function sendEmailPasswordReset(email: string): Promise<void> {
+  const cleanEmail = email.trim().toLowerCase();
+  if (!cleanEmail) {
+    const error = new Error('Enter your email address first.');
+    error.name = 'InvalidResetEmailError';
+    throw error;
+  }
+  await withFirebaseTimeout(
+    sendPasswordResetEmail(auth, cleanEmail),
+    'Password reset email'
+  );
 }
 
 /**
