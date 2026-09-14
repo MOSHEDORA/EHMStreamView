@@ -23,8 +23,9 @@ import {
   collection,
   deleteDoc,
   increment,
+  getDocs,
 } from 'firebase/firestore';
-import { WorshipState, UserSession } from '../types';
+import { WorshipState, UserSession, Song, RegisteredUser } from '../types';
 import firebaseConfigData from '../../firebase-applet-config.json';
 
 // Initialize Firebase App
@@ -422,4 +423,223 @@ export function subscribeToFirestoreStats(
     unsubPresence();
   };
 }
+
+/**
+ * ============================================================================
+ * Synchronized Church Songs per Account in Firebase Firestore
+ * Path: /accounts/{accountId}/songs/{songId}
+ * ============================================================================
+ */
+export async function saveSongToFirestore(accountId: string, song: Song): Promise<boolean> {
+  const cleanAccount = (accountId || 'worship-main').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+  if (!song || !song.id) return false;
+  try {
+    const songDocRef = doc(db, 'accounts', cleanAccount, 'songs', song.id);
+    await setDoc(
+      songDocRef,
+      {
+        id: song.id,
+        title: song.title,
+        artist: song.artist || '',
+        key: song.key || 'G',
+        ccli: song.ccli || '',
+        tempo: song.tempo || '',
+        tags: song.tags || [],
+        sections: song.sections || [],
+        accountId: cleanAccount,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    return true;
+  } catch (err) {
+    console.warn('Failed to save song to Firestore:', err);
+    return false;
+  }
+}
+
+export async function deleteSongFromFirestore(accountId: string, songId: string): Promise<boolean> {
+  const cleanAccount = (accountId || 'worship-main').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+  if (!songId) return false;
+  try {
+    const songDocRef = doc(db, 'accounts', cleanAccount, 'songs', songId);
+    await deleteDoc(songDocRef);
+    return true;
+  } catch (err) {
+    console.warn('Failed to delete song from Firestore:', err);
+    return false;
+  }
+}
+
+export async function loadAccountSongsFromFirestore(accountId: string): Promise<Song[]> {
+  const cleanAccount = (accountId || 'worship-main').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+  try {
+    const songsColRef = collection(db, 'accounts', cleanAccount, 'songs');
+    const snap = await getDocs(songsColRef);
+    const result: Song[] = [];
+    snap.forEach((docItem) => {
+      const data = docItem.data();
+      if (data && data.title && Array.isArray(data.sections)) {
+        result.push({
+          id: data.id || docItem.id,
+          title: data.title,
+          artist: data.artist || '',
+          key: data.key || 'G',
+          ccli: data.ccli || '',
+          tempo: data.tempo || '',
+          tags: data.tags || [],
+          sections: data.sections || [],
+        });
+      }
+    });
+    return result;
+  } catch (err) {
+    console.warn('Failed to load songs from Firestore:', err);
+    return [];
+  }
+}
+
+export function subscribeToAccountSongs(
+  accountId: string,
+  onSongsUpdate: (songs: Song[]) => void
+): Unsubscribe {
+  const cleanAccount = (accountId || 'worship-main').toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+  const songsColRef = collection(db, 'accounts', cleanAccount, 'songs');
+
+  return onSnapshot(
+    songsColRef,
+    (snapshot) => {
+      const songs: Song[] = [];
+      snapshot.forEach((docItem) => {
+        const data = docItem.data();
+        if (data && data.title && Array.isArray(data.sections)) {
+          songs.push({
+            id: data.id || docItem.id,
+            title: data.title,
+            artist: data.artist || '',
+            key: data.key || 'G',
+            ccli: data.ccli || '',
+            tempo: data.tempo || '',
+            tags: data.tags || [],
+            sections: data.sections || [],
+          });
+        }
+      });
+      onSongsUpdate(songs);
+    },
+    (err) => {
+      console.warn('Songs Firestore subscription error:', err);
+    }
+  );
+}
+
+/**
+ * ============================================================================
+ * Synchronized Registered Accounts in Firebase Firestore
+ * Path: /registered_users/{userId} & /accounts/{accountId}
+ * ============================================================================
+ */
+export async function saveRegisteredUserToFirestore(user: RegisteredUser): Promise<boolean> {
+  if (!user || !user.email) return false;
+  const docId = user.id || `user-${user.email.replace(/[^a-zA-Z0-9]/g, '_')}`;
+  try {
+    const userDocRef = doc(db, 'registered_users', docId);
+    await setDoc(
+      userDocRef,
+      {
+        id: docId,
+        name: user.name,
+        email: user.email.toLowerCase().trim(),
+        password: user.password || '',
+        churchName: user.churchName || '',
+        role: user.role || 'Lead AV Director',
+        accountSlug: user.accountSlug || 'worship-main',
+        createdAt: user.createdAt || Date.now(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+
+    // Also register or update the church account document
+    if (user.accountSlug) {
+      const accRef = doc(db, 'accounts', user.accountSlug);
+      await setDoc(
+        accRef,
+        {
+          id: user.accountSlug,
+          name: user.churchName || user.name,
+          churchName: user.churchName || user.name,
+          leader: user.name,
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      );
+    }
+    return true;
+  } catch (err) {
+    console.warn('Failed to save registered account to Firestore:', err);
+    return false;
+  }
+}
+
+export async function fetchRegisteredUsersFromFirestore(): Promise<RegisteredUser[]> {
+  try {
+    const colRef = collection(db, 'registered_users');
+    const snap = await getDocs(colRef);
+    const users: RegisteredUser[] = [];
+    snap.forEach((docItem) => {
+      const data = docItem.data();
+      if (data && data.email) {
+        users.push({
+          id: data.id || docItem.id,
+          name: data.name || '',
+          email: data.email,
+          password: data.password || '',
+          churchName: data.churchName || '',
+          role: data.role || 'Lead AV Director',
+          accountSlug: data.accountSlug || 'worship-main',
+          createdAt: data.createdAt || Date.now(),
+        });
+      }
+    });
+    return users;
+  } catch (err) {
+    console.warn('Failed to fetch registered users from Firestore:', err);
+    return [];
+  }
+}
+
+export function subscribeToRegisteredUsers(
+  onUsersUpdate: (users: RegisteredUser[]) => void
+): Unsubscribe {
+  const colRef = collection(db, 'registered_users');
+  return onSnapshot(
+    colRef,
+    (snapshot) => {
+      const users: RegisteredUser[] = [];
+      snapshot.forEach((docItem) => {
+        const data = docItem.data();
+        if (data && data.email) {
+          users.push({
+            id: data.id || docItem.id,
+            name: data.name || '',
+            email: data.email,
+            password: data.password || '',
+            churchName: data.churchName || '',
+            role: data.role || 'Lead AV Director',
+            accountSlug: data.accountSlug || 'worship-main',
+            createdAt: data.createdAt || Date.now(),
+          });
+        }
+      });
+      if (users.length > 0) {
+        onUsersUpdate(users);
+      }
+    },
+    (err) => {
+      console.warn('Registered users subscription error:', err);
+    }
+  );
+}
+
 

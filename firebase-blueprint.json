@@ -71,6 +71,50 @@
         "churchName": { "type": "string" }
       },
       "required": ["sessionId", "lastSeen"]
+    },
+    "WorshipSong": {
+      "title": "Worship Song Document",
+      "description": "Church song lyrics, sections, artist, key, and metadata shared across devices in the same account",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "artist": { "type": "string" },
+        "key": { "type": "string" },
+        "ccli": { "type": "string" },
+        "sections": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": { "type": "string" },
+              "label": { "type": "string" },
+              "primaryText": { "type": "string" },
+              "secondaryText": { "type": "string" }
+            }
+          }
+        },
+        "accountId": { "type": "string" },
+        "updatedAt": { "type": "string" },
+        "updatedBy": { "type": "string" }
+      },
+      "required": ["id", "title", "sections", "updatedAt"]
+    },
+    "RegisteredAccount": {
+      "title": "Registered Church Account Credentials",
+      "description": "Registered account profile for multi-device authentication and team operators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "password": { "type": "string" },
+        "churchName": { "type": "string" },
+        "role": { "type": "string" },
+        "accountSlug": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["id", "name", "email", "password", "churchName", "accountSlug"]
     }
   },
   "firestore": {
@@ -81,6 +125,14 @@
     "/accounts/{accountId}/live/{docId}": {
       "schema": "LiveState",
       "description": "Real-time worship sync state document"
+    },
+    "/accounts/{accountId}/songs/{songId}": {
+      "schema": "WorshipSong",
+      "description": "Custom and edited church songs synchronized across all devices in the account"
+    },
+    "/registered_users/{userId}": {
+      "schema": "RegisteredAccount",
+      "description": "Registered church operator accounts synchronized across all devices"
     },
     "/users/{userId}": {
       "schema": "UserProfile",

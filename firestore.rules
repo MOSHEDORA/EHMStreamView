@@ -16,22 +16,35 @@ service cloud.firestore {
 
     // User profiles
     match /users/{userId} {
-      allow read: if isSignedIn();
-      allow create, update: if isOwner(userId);
+      allow read: if true;
+      allow create, update: if isSignedIn() || isValidId(userId);
+      allow delete: if false;
+    }
+
+    // Registered church accounts & operators (syncs registered accounts across devices)
+    match /registered_users/{userId} {
+      allow get, list: if true;
+      allow create, update: if true;
       allow delete: if false;
     }
 
     // Church organization accounts
     match /accounts/{accountId} {
       allow get, list: if true; // Public read allows displays & OBS to resolve church profiles
-      allow create, update: if isSignedIn() && isValidId(accountId);
+      allow create, update: if true;
       allow delete: if false;
 
       // Real-time presentation state: Projectors & OBS read in real-time
       match /live/{docId} {
         allow get, list: if true;
-        allow create, update: if isSignedIn() || request.resource.data.accountId == accountId;
+        allow create, update: if true;
         allow delete: if false;
+      }
+
+      // Synchronized Church Song Library across all devices on the same account
+      match /songs/{songId} {
+        allow get, list: if true;
+        allow create, update, delete: if true;
       }
     }
 

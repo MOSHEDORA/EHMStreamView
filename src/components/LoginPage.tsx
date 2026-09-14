@@ -6,6 +6,7 @@ import {
   getRegisteredUsers,
   fetchRegisteredUsers,
   saveRegisteredUsers,
+  initRegisteredUsersRealtimeSync,
 } from '../data/authService';
 import {
   BookOpen,
@@ -80,9 +81,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({
   useEffect(() => {
     let isCancelled = false;
 
-    // 1. Initial fetch from server
+    // 1. Initial fetch from server & Firestore
     fetchRegisteredUsers().then((users) => {
       if (!isCancelled && Array.isArray(users) && users.length > 0) {
+        setRegisteredUsersList(users);
+      }
+    });
+
+    // 1b. Real-time Firebase Firestore subscription for instant multi-device account sync
+    const unsubFirestore = initRegisteredUsersRealtimeSync((users) => {
+      if (!isCancelled && Array.isArray(users)) {
         setRegisteredUsersList(users);
       }
     });

@@ -1,4 +1,9 @@
 import { RegisteredUser, UserSession } from '../types';
+import {
+  saveRegisteredUserToFirestore,
+  fetchRegisteredUsersFromFirestore,
+  subscribeToRegisteredUsers,
+} from '../services/firebase';
 
 const USERS_STORAGE_KEY = 'worship_registered_users';
 
@@ -60,21 +65,63 @@ export function saveRegisteredUsers(users: RegisteredUser[]): void {
   }
 }
 
-// Fetch all registered users from the real-time server database
+// Real-time Firestore subscription handle
+let firestoreUsersUnsub: (() => void) | null = null;
+
+export function initRegisteredUsersRealtimeSync(onUpdate?: (users: RegisteredUser[]) => void): () => void {
+  if (firestoreUsersUnsub) {
+    return firestoreUsersUnsub;
+  }
+  firestoreUsersUnsub = subscribeToRegisteredUsers((incoming) => {
+    const current = getRegisteredUsers();
+    const map = new Map<string, RegisteredUser>();
+    current.forEach((u) => map.set(u.email.toLowerCase().trim(), u));
+    incoming.forEach((u) => map.set(u.email.toLowerCase().trim(), u));
+    const merged = Array.from(map.values());
+    saveRegisteredUsers(merged);
+    if (onUpdate) {
+      onUpdate(merged);
+    }
+  });
+  return firestoreUsersUnsub;
+}
+
+// Fetch all registered users from both the real-time server database and Firebase Firestore
 export async function fetchRegisteredUsers(): Promise<RegisteredUser[]> {
+  const currentUsers = getRegisteredUsers();
+  const userMap = new Map<string, RegisteredUser>();
+  currentUsers.forEach((u) => userMap.set(u.email.toLowerCase().trim(), u));
+
+  // 1. Fetch from Express server
   try {
     const res = await fetch('/api/auth/users');
     if (res.ok) {
       const data = await res.json();
       if (data.success && Array.isArray(data.users)) {
-        saveRegisteredUsers(data.users);
-        return data.users;
+        data.users.forEach((u: RegisteredUser) => {
+          if (u.email) userMap.set(u.email.toLowerCase().trim(), u);
+        });
       }
     }
   } catch (err) {
     console.warn('Could not fetch registered users from server, using local cache:', err);
   }
-  return getRegisteredUsers();
+
+  // 2. Fetch from Firebase Firestore (/registered_users)
+  try {
+    const firestoreUsers = await fetchRegisteredUsersFromFirestore();
+    if (Array.isArray(firestoreUsers) && firestoreUsers.length > 0) {
+      firestoreUsers.forEach((u) => {
+        if (u.email) userMap.set(u.email.toLowerCase().trim(), u);
+      });
+    }
+  } catch (fsErr) {
+    console.warn('Could not fetch registered users from Firestore:', fsErr);
+  }
+
+  const merged = Array.from(userMap.values());
+  saveRegisteredUsers(merged);
+  return merged;
 }
 
 export function findUserByEmail(email: string): RegisteredUser | undefined {
@@ -233,6 +280,9 @@ export async function registerUser(params: {
     const data = await response.json();
 
     if (response.ok && data.success) {
+      if (data.user) {
+        saveRegisteredUserToFirestore(data.user).catch(() => {});
+      }
       // Sync local users list
       fetchRegisteredUsers().catch(() => {});
       return {
@@ -276,6 +326,11 @@ export async function registerUser(params: {
     accountSlug,
     createdAt: Date.now(),
   };
+
+  // Save to Firebase Firestore immediately
+  saveRegisteredUserToFirestore(newUser).catch((err) => {
+    console.warn('Firestore fallback user save:', err);
+  });
 
   const users = getRegisteredUsers();
   const updated = [newUser, ...users];
