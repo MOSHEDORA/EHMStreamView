@@ -59,6 +59,19 @@ async function withFirebaseTimeout<T>(operation: Promise<T>, operationName: stri
 
 export function getEmailAuthErrorMessage(error: any, action: 'sign in' | 'register'): string {
   const errorMessage = String(error?.message || '').toUpperCase();
+  const errorCode = String(error?.code || '').toLowerCase();
+  const isRateLimited =
+    error?.code === 42908 ||
+    error?.http === 429 ||
+    error?.status === 429 ||
+    errorCode.includes('too-many-requests') ||
+    errorCode.includes('resource-exhausted') ||
+    errorMessage.includes('429') ||
+    errorMessage.includes('TOO MANY REQUESTS');
+
+  if (isRateLimited) {
+    return 'Firebase is temporarily rate-limiting requests. Wait a few minutes before trying again, and check Firebase quotas if it continues.';
+  }
   if (error?.code === 'auth/operation-not-allowed' || errorMessage.includes('PASSWORD_LOGIN_DISABLED')) {
     return `Email/password ${action} is disabled for this Firebase project. Enable Email/Password in Firebase Console > Authentication > Sign-in method.`;
   }

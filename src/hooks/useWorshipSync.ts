@@ -89,77 +89,6 @@ export function useWorshipSync(
     };
   }, [account, clientType]);
 
-  // Handle mobile wake up, tab switching, and network re-connection
-  useEffect(() => {
-    const handleReactivation = () => {
-      if (document.visibilityState === 'visible' && navigator.onLine) {
-        // Attempt HTTP fetch if available
-        fetch(`/api/state/${encodeURIComponent(account)}`)
-          .then((res) => res.json())
-          .then((data) => {
-            if (data && data.state) {
-              setState((prev) => {
-                const incomingTimestamp = Number(data.state.lastUpdated || 0);
-                if (incomingTimestamp && incomingTimestamp < lastAppliedStateRef.current) {
-                  return prev;
-                }
-                if (incomingTimestamp) {
-                  lastAppliedStateRef.current = incomingTimestamp;
-                }
-                const nextState = { ...prev, ...data.state, account };
-                try {
-                  localStorage.setItem(`worship_state_${account}`, JSON.stringify(nextState));
-                } catch (e) {}
-                return nextState;
-              });
-            }
-          })
-          .catch(() => {});
-
-        // Request state from online peers via Cloud Relay
-        if (relayRef.current && clientType !== 'operator') {
-          relayRef.current.requestStateFromPeers();
-        }
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleReactivation);
-    window.addEventListener('focus', handleReactivation);
-    window.addEventListener('online', handleReactivation);
-    return () => {
-      document.removeEventListener('visibilitychange', handleReactivation);
-      window.removeEventListener('focus', handleReactivation);
-      window.removeEventListener('online', handleReactivation);
-    };
-  }, [account, clientType]);
-
-  // Keep displays current when a hosting provider suspends WebSocket or snapshot delivery.
-  useEffect(() => {
-    const intervalMs = Math.max(1000, Number(import.meta.env.VITE_SYNC_POLL_INTERVAL_MS || 2000));
-    const pollState = () => {
-      if (document.visibilityState !== 'visible' || !navigator.onLine) return;
-      fetch(`/api/state/${encodeURIComponent(account)}`, { cache: 'no-store' })
-        .then((res) => (res.ok ? res.json() : null))
-        .then((data) => {
-          if (!data?.state) return;
-          const incomingTimestamp = Number(data.state.lastUpdated || 0);
-          if (!incomingTimestamp || incomingTimestamp <= lastAppliedStateRef.current) return;
-          lastAppliedStateRef.current = incomingTimestamp;
-          setState((prev) => {
-            const nextState = { ...prev, ...data.state, account };
-            try {
-              localStorage.setItem(`worship_state_${account}`, JSON.stringify(nextState));
-            } catch (e) {}
-            return nextState;
-          });
-        })
-        .catch(() => {});
-    };
-
-    const timer = window.setInterval(pollState, intervalMs);
-    return () => window.clearInterval(timer);
-  }, [account]);
-
   // Switch church account
   const changeAccount = useCallback((newAccount: string) => {
     const clean = newAccount.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') || 'worship-main';
@@ -178,15 +107,6 @@ export function useWorshipSync(
       relayRef.current.switchAccount(clean);
     }
 
-    // Try fetching account state from server
-    fetch(`/api/state/${encodeURIComponent(clean)}`)
-      .then((res) => res.json())
-      .then((data) => {
-        if (data && data.state) {
-          setState((prev) => ({ ...prev, ...data.state, account: clean }));
-        }
-      })
-      .catch(() => {});
   }, []);
 
   // Sync with initialAccount prop if it changes externally
@@ -217,13 +137,6 @@ export function useWorshipSync(
         if (relayRef.current) {
           relayRef.current.broadcastState(updates);
         }
-
-        // Fallback HTTP POST if available
-        fetch(`/api/state/${encodeURIComponent(account)}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(updates),
-        }).catch(() => {});
 
         return nextState;
       });
