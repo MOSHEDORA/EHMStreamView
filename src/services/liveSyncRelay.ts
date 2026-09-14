@@ -57,6 +57,7 @@ export class LiveSyncRelay {
   private activeDevices = new Map<string, ConnectedDevice>();
   private heartbeatTimer: any = null;
   private cleanupDevicesTimer: any = null;
+  private firestorePollingTimer: any = null;
   private lastAppliedTimestamp = 0;
   private pingStartTime = 0;
   private currentTransport: TransportMode = 'connecting';
@@ -121,6 +122,8 @@ export class LiveSyncRelay {
   private init() {
     this.initBroadcastChannel();
     this.initFirebaseSync();
+    this.initLocalWebSocket();
+    this.initCloudRelay();
     this.startPresenceEngine();
     this.hydrateLatestStateFromCloud();
   }
@@ -148,10 +151,40 @@ export class LiveSyncRelay {
         () => {
           this.isFirestoreActive = false;
           this.updateOverallStatus();
+          this.startFirestorePolling();
         }
       );
+      // Keep a recovery read active because mobile browsers can suspend an SSE/
+      // Firestore stream without immediately reporting an error.
+      this.startFirestorePolling();
     } catch (err) {
       console.warn('Firebase Firestore live listener failed to initialize:', err);
+      this.startFirestorePolling();
+    }
+  }
+
+  private startFirestorePolling() {
+    if (this.firestorePollingTimer || this.isDestroyed) return;
+    this.firestorePollingTimer = setInterval(() => {
+      if (this.isDestroyed) return;
+      fetchInitialFirestoreWorshipState(this.account)
+        .then((firestoreState) => {
+          if (this.isDestroyed || !firestoreState) return;
+          const stateTimestamp = Number(firestoreState.lastUpdated || 0);
+          if (stateTimestamp <= this.lastAppliedTimestamp) return;
+          this.lastAppliedTimestamp = stateTimestamp;
+          this.isFirestoreActive = true;
+          this.updateOverallStatus();
+          this.onStateReceived(firestoreState, 'firebase_firestore_poll');
+        })
+        .catch(() => {});
+    }, 2000);
+  }
+
+  private stopFirestorePolling() {
+    if (this.firestorePollingTimer) {
+      clearInterval(this.firestorePollingTimer);
+      this.firestorePollingTimer = null;
     }
   }
 
@@ -318,6 +351,30 @@ export class LiveSyncRelay {
         } catch (e) {}
       }
 
+      // 3. Query cloud relay cache for the last retained state
+      const res = await fetch(`https://ntfy.sh/${this.topic}/json?poll=1&since=3h`, {
+        cache: 'no-cache',
+      });
+      if (res.ok) {
+        const text = await res.text();
+        // ntfy returns newline-delimited JSON
+        const lines = text.trim().split('\n').filter(Boolean);
+        for (let i = lines.length - 1; i >= 0; i--) {
+          try {
+            const entry = JSON.parse(lines[i]);
+            if (entry.event === 'message' && entry.message) {
+              const msg: SyncMessage = JSON.parse(entry.message);
+              if (msg.account === this.account && msg.type === 'sync' && msg.state) {
+                if (msg.timestamp > this.lastAppliedTimestamp) {
+                  this.lastAppliedTimestamp = msg.timestamp;
+                  this.onStateReceived(msg.state, msg.senderId);
+                  break;
+                }
+              }
+            }
+          } catch (e) {}
+        }
+      }
     } catch (err) {
       // Network offline or failed, handled gracefully
     }
@@ -439,6 +496,8 @@ export class LiveSyncRelay {
     }
 
     // 3. Broadcast to Cloud Realtime Relay (Vercel & all external devices)
+    this.sendToCloudRelay(envelope, true);
+
     // 4. Broadcast & Persist state to Firebase Firestore
     saveWorshipStateToFirestore(this.account, envelope.state, this.deviceName);
   }
@@ -496,6 +555,21 @@ export class LiveSyncRelay {
         this.bc.postMessage(msg);
       } catch (e) {}
     }
+    this.sendToCloudRelay(msg, false);
+  }
+
+  private sendToCloudRelay(msg: SyncMessage, cacheLatest: boolean) {
+    const payloadString = JSON.stringify(msg);
+
+    fetch(`https://ntfy.sh/${this.topic}`, {
+      method: 'POST',
+      headers: {
+        'Title': 'VerseView Pro Sync',
+        'X-Tags': 'church,worship,live',
+        'X-Cache': cacheLatest ? 'yes' : 'no',
+      },
+      body: payloadString,
+    }).catch(() => {});
   }
 
   private startPresenceEngine() {
@@ -504,7 +578,7 @@ export class LiveSyncRelay {
       if (!this.isDestroyed) {
         this.broadcastPresence();
       }
-    }, 60000);
+    }, 15000);
 
     // Prune inactive devices older than 35s
     this.cleanupDevicesTimer = setInterval(() => {
@@ -587,6 +661,7 @@ export class LiveSyncRelay {
     this.isDestroyed = true;
     if (this.heartbeatTimer) clearInterval(this.heartbeatTimer);
     if (this.cleanupDevicesTimer) clearInterval(this.cleanupDevicesTimer);
+    this.stopFirestorePolling();
     if (this.unsubscribeFirestore) {
       this.unsubscribeFirestore();
       this.unsubscribeFirestore = null;
