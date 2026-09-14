@@ -207,6 +207,21 @@ export const BroadcastActionBar: React.FC<BroadcastActionBarProps> = ({
           <ExternalLink className="w-3 h-3 text-slate-400" />
         </a>
 
+        {/* Quick Launch Both Screens at Same Time */}
+        <button
+          id="open-both-screens-btn"
+          type="button"
+          onClick={() => {
+            window.open(getPopoutUrl('fullscreen'), '_blank');
+            window.open(getPopoutUrl('lowerthird'), '_blank');
+          }}
+          className="hidden xl:flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-purple-950/80 border border-purple-500/50 hover:bg-purple-900 text-purple-200 text-xs font-bold transition-colors shadow-sm"
+          title="Open Both Sanctuary Projector and OBS Lower Third simultaneously in separate windows"
+        >
+          <Sparkles className="w-3.5 h-3.5 text-purple-400" />
+          <span>Open Both</span>
+        </button>
+
         {/* All URLs Guide */}
         <button
           id="open-all-urls-modal-btn"

@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { WorshipState } from '../types';
 import { DEFAULT_STATE } from '../data/defaultSettings';
+import { saveRegisteredUsers } from '../data/authService';
 
 export function useWorshipSync(initialAccount: string = 'worship-main', clientType: 'operator' | 'display' | 'stage' = 'operator') {
   const [account, setAccount] = useState<string>(() => {
@@ -47,7 +48,17 @@ export function useWorshipSync(initialAccount: string = 'worship-main', clientTy
     url.searchParams.set('account', clean);
     window.history.replaceState({}, '', url.toString());
 
-    // Reconnect socket
+    // Fetch account state immediately
+    fetch(`/api/state/${encodeURIComponent(clean)}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data && data.state) {
+          setState((prev) => ({ ...prev, ...data.state, account: clean }));
+        }
+      })
+      .catch(() => {});
+
+    // Reconnect socket to new room
     if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
       wsRef.current.send(JSON.stringify({
         type: 'join',
@@ -56,6 +67,45 @@ export function useWorshipSync(initialAccount: string = 'worship-main', clientTy
       }));
     }
   }, [clientType]);
+
+  // Sync with initialAccount prop if it changes externally (e.g. user logs in or switches church)
+  useEffect(() => {
+    const cleanInitial = (initialAccount || '').trim().toLowerCase();
+    if (cleanInitial && cleanInitial !== account) {
+      changeAccount(cleanInitial);
+    }
+  }, [initialAccount, account, changeAccount]);
+
+  // Handle mobile wake up, tab switching, and network re-connection
+  useEffect(() => {
+    const handleReactivation = () => {
+      if (document.visibilityState === 'visible' || navigator.onLine) {
+        fetch(`/api/state/${encodeURIComponent(account)}`)
+          .then((res) => res.json())
+          .then((data) => {
+            if (data && data.state) {
+              setState((prev) => ({ ...prev, ...data.state }));
+            }
+          })
+          .catch(() => {});
+
+        if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+          try {
+            if (wsRef.current) wsRef.current.close();
+          } catch (e) {}
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleReactivation);
+    window.addEventListener('focus', handleReactivation);
+    window.addEventListener('online', handleReactivation);
+    return () => {
+      document.removeEventListener('visibilitychange', handleReactivation);
+      window.removeEventListener('focus', handleReactivation);
+      window.removeEventListener('online', handleReactivation);
+    };
+  }, [account]);
 
   // Setup BroadcastChannel for 0ms cross-tab synchronization
   useEffect(() => {
@@ -133,6 +183,10 @@ export function useWorshipSync(initialAccount: string = 'worship-main', clientTy
             } else if (data.type === 'count_update') {
               if (data.count !== undefined) {
                 setConnectedCount(data.count);
+              }
+            } else if (data.type === 'users_updated') {
+              if (Array.isArray(data.users)) {
+                saveRegisteredUsers(data.users);
               }
             }
           } catch (e) {

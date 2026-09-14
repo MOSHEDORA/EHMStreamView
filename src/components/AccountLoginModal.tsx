@@ -1,8 +1,10 @@
-import React, { useState } from 'react';
-import { UserSession } from '../types';
+import React, { useState, useEffect } from 'react';
+import { UserSession, RegisteredUser } from '../types';
 import {
   loginUser,
   registerUser,
+  getRegisteredUsers,
+  fetchRegisteredUsers,
 } from '../data/authService';
 import {
   Church,
@@ -17,6 +19,8 @@ import {
   UserPlus,
   AlertCircle,
   User,
+  RefreshCw,
+  Sparkles,
 } from 'lucide-react';
 
 interface AccountLoginModalProps {
@@ -52,27 +56,48 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
   // Status
   const [errorMsg, setErrorMsg] = useState('');
   const [errorType, setErrorType] = useState<string | null>(null);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Registered accounts for quick switching
+  const [accounts, setAccounts] = useState<RegisteredUser[]>(() => getRegisteredUsers());
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchRegisteredUsers().then((list) => {
+        if (Array.isArray(list) && list.length > 0) {
+          setAccounts(list);
+        }
+      });
+    }
+  }, [isOpen]);
 
   if (!isOpen) return null;
 
-  const handleLoginSubmit = (e: React.FormEvent) => {
+  const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setErrorType(null);
+    setIsSubmitting(true);
 
-    const result = loginUser(email, password);
-    if (!result.success || !result.session) {
-      setErrorMsg(result.error || 'Failed to sign in.');
-      setErrorType(result.errorType || 'general_error');
-      return;
+    try {
+      const result = await loginUser(email, password);
+      if (!result.success || !result.session) {
+        setErrorMsg(result.error || 'Failed to sign in.');
+        setErrorType(result.errorType || 'general_error');
+        setIsSubmitting(false);
+        return;
+      }
+
+      localStorage.setItem('worship_user_session', JSON.stringify(result.session));
+      onLogin(result.session);
+      onClose();
+    } catch (err: any) {
+      setErrorMsg('An unexpected error occurred during login.');
+      setIsSubmitting(false);
     }
-
-    localStorage.setItem('worship_user_session', JSON.stringify(result.session));
-    onLogin(result.session);
-    onClose();
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
+  const handleRegisterSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setErrorType(null);
@@ -83,22 +108,39 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
       return;
     }
 
-    const result = registerUser({
-      name: regName,
-      churchName: regChurch,
-      email: regEmail,
-      password: regPassword,
-    });
+    setIsSubmitting(true);
 
-    if (!result.success || !result.session) {
-      setErrorMsg(result.error || 'Failed to register.');
-      setErrorType(result.errorType || 'general_error');
-      return;
+    try {
+      const result = await registerUser({
+        name: regName,
+        churchName: regChurch,
+        email: regEmail,
+        password: regPassword,
+      });
+
+      if (!result.success || !result.session) {
+        setErrorMsg(result.error || 'Failed to register.');
+        setErrorType(result.errorType || 'general_error');
+        setIsSubmitting(false);
+        return;
+      }
+
+      localStorage.setItem('worship_user_session', JSON.stringify(result.session));
+      onLogin(result.session);
+      onClose();
+    } catch (err: any) {
+      setErrorMsg('An unexpected error occurred during registration.');
+      setIsSubmitting(false);
     }
+  };
 
-    localStorage.setItem('worship_user_session', JSON.stringify(result.session));
-    onLogin(result.session);
-    onClose();
+  const handleSelectAccount = (acc: RegisteredUser) => {
+    setEmail(acc.email);
+    if (acc.password) {
+      setPassword(acc.password);
+    }
+    setErrorMsg('');
+    setModalMode('login');
   };
 
   return (
@@ -285,10 +327,20 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/30"
+                disabled={isSubmitting}
+                className="flex-1 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 disabled:opacity-60 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-sky-600/30"
               >
-                <span>Sign In</span>
-                <ArrowRight className="w-3.5 h-3.5" />
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Signing in...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>Sign In</span>
+                    <ArrowRight className="w-3.5 h-3.5" />
+                  </>
+                )}
               </button>
             </div>
           </form>
@@ -406,13 +458,47 @@ export const AccountLoginModal: React.FC<AccountLoginModalProps> = ({
               </button>
               <button
                 type="submit"
-                className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30"
+                disabled={isSubmitting}
+                className="flex-1 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 disabled:opacity-60 text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-md shadow-emerald-600/30"
               >
-                <UserPlus className="w-3.5 h-3.5" />
-                <span>Create &amp; Sign In</span>
+                {isSubmitting ? (
+                  <>
+                    <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                    <span>Creating &amp; Syncing...</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-3.5 h-3.5" />
+                    <span>Create &amp; Sign In</span>
+                  </>
+                )}
               </button>
             </div>
           </form>
+        )}
+
+        {/* Quick Church Accounts Switcher */}
+        {accounts.length > 0 && (
+          <div className="pt-3 border-t border-slate-800 space-y-1.5">
+            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider flex items-center gap-1">
+              <Sparkles className="w-3 h-3 text-amber-400" />
+              Registered Accounts ({accounts.length})
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-32 overflow-y-auto">
+              {accounts.map((acc) => (
+                <button
+                  key={acc.id || acc.email}
+                  type="button"
+                  onClick={() => handleSelectAccount(acc)}
+                  className="p-1.5 rounded-lg bg-slate-950/60 hover:bg-slate-800/80 border border-slate-800 text-left transition-colors text-[11px]"
+                >
+                  <div className="font-bold text-slate-200 truncate">{acc.name}</div>
+                  <div className="text-[10px] text-sky-400 truncate">{acc.churchName}</div>
+                  <div className="text-[9px] text-slate-400 truncate">{acc.email}</div>
+                </button>
+              ))}
+            </div>
+          </div>
         )}
       </div>
     </div>

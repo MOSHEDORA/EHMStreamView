@@ -130,10 +130,12 @@ export interface WorshipState {
 }
 
 export interface WsMessage {
-  type: 'join' | 'sync' | 'update_state' | 'ping' | 'pong';
+  type: 'join' | 'sync' | 'update_state' | 'ping' | 'pong' | 'users_updated' | 'get_users' | 'count_update' | 'init';
   account?: string;
   clientType?: 'operator' | 'display' | 'stage';
   state?: Partial<WorshipState>;
+  users?: RegisteredUser[];
+  count?: number;
 }
 
 export interface UserSession {
@@ -149,8 +151,10 @@ export interface RegisteredUser {
   id: string;
   name: string;
   email: string;
-  password: string;
+  password?: string;
   churchName: string;
   role: string;
+  accountSlug?: string;
+  onlineDevices?: number;
   createdAt: number;
 }

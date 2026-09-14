@@ -1,6 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { WORSHIP_SONGS } from '../data/lyricsData';
 import { Song, SongSection, SlideContent, WorshipState } from '../types';
+import { isTeluguText } from '../utils/telugu';
 import {
   Music,
   Search,
@@ -67,11 +68,14 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
   const [searchQuery, setSearchQuery] = useState<string>('');
   const [targetMode, setTargetMode] = useState<'fullscreen' | 'lowerthird'>('fullscreen');
 
-  // Line separation configuration: '1', '2', '3', '4', 'all', or 'custom'
+  // lineSeparation configuration: '1', '2', '3', '4', 'all', or 'custom'
   const [lineSeparation, setLineSeparation] = useState<LineSeparationOption>(() => {
     return (localStorage.getItem('worship_lyrics_line_sep') as LineSeparationOption) || '2';
   });
   const [customLineCount, setCustomLineCount] = useState<number>(2);
+
+  // Mobile sub-tab for phone & tablet responsiveness ('songs' | 'slides')
+  const [mobileSubTab, setMobileSubTab] = useState<'songs' | 'slides'>('slides');
 
   // Setlist (Sunday Service Playlist)
   const [setlist, setSetlist] = useState<Song[]>(() => [songs[0], songs[1]]);
@@ -621,10 +625,38 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
         </div>
       )}
 
+      {/* Mobile / Tablet Sub Tab Switcher (Visible on < lg screens) */}
+      <div className="lg:hidden flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800 gap-1 text-xs shrink-0">
+        <button
+          type="button"
+          onClick={() => setMobileSubTab('songs')}
+          className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all text-center ${
+            mobileSubTab === 'songs'
+              ? 'bg-sky-600 text-white shadow'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          1. Song Library ({filteredSongs.length})
+        </button>
+        <button
+          type="button"
+          onClick={() => setMobileSubTab('slides')}
+          className={`flex-1 py-1.5 px-3 rounded-lg font-bold transition-all text-center ${
+            mobileSubTab === 'slides'
+              ? 'bg-sky-600 text-white shadow'
+              : 'text-slate-400 hover:text-white'
+          }`}
+        >
+          2. Lyrics Slides ({separatedSlides.length})
+        </button>
+      </div>
+
       {/* Main Grid: Songs Library (4 cols) | Slide Sections (8 cols) */}
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
         {/* Left Column: Song Library & Sunday Setlist (4 cols) */}
-        <div className="lg:col-span-4 flex flex-col space-y-4">
+        <div className={`lg:col-span-4 flex flex-col space-y-4 ${
+          mobileSubTab === 'songs' ? 'flex' : 'hidden lg:flex'
+        }`}>
           {/* Search bar */}
           <div className="relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" />
@@ -670,7 +702,10 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
                   >
                     <button
                       type="button"
-                      onClick={() => setSelectedSongId(s.id)}
+                      onClick={() => {
+                        setSelectedSongId(s.id);
+                        setMobileSubTab('slides');
+                      }}
                       className="flex-1 text-left truncate font-medium"
                     >
                       <span className="text-sky-400 font-bold mr-1.5">{idx + 1}.</span>
@@ -702,7 +737,10 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
               return (
                 <div
                   key={song.id}
-                  onClick={() => setSelectedSongId(song.id)}
+                  onClick={() => {
+                    setSelectedSongId(song.id);
+                    setMobileSubTab('slides');
+                  }}
                   className={`p-3 rounded-xl border cursor-pointer transition-all duration-200 ${
                     isSelected
                       ? 'bg-slate-800 border-sky-500 shadow-md ring-1 ring-sky-500/40'
@@ -746,7 +784,9 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
 
         {/* Right Column: Song Line-Separated Slides (8 cols) */}
         {selectedSong && (
-          <div className="lg:col-span-8 bg-slate-800/80 backdrop-blur-md rounded-xl p-5 border border-slate-700/60 shadow-md flex flex-col space-y-4">
+          <div className={`lg:col-span-8 bg-slate-800/80 backdrop-blur-md rounded-xl p-4 sm:p-5 border border-slate-700/60 shadow-md flex flex-col space-y-4 ${
+            mobileSubTab === 'slides' ? 'flex' : 'hidden lg:flex'
+          }`}>
             {/* Song Header & Quick Info */}
             <div className="flex flex-wrap items-center justify-between gap-4 border-b border-slate-700/80 pb-4">
               <div>
@@ -989,13 +1029,13 @@ export const LyricsTab: React.FC<LyricsTabProps> = ({
                     </div>
 
                     {/* Primary separated lyrics lines */}
-                    <div className="text-base font-semibold text-slate-100 whitespace-pre-line leading-relaxed font-sans pl-1">
+                    <div className={`text-base font-semibold text-slate-100 whitespace-pre-line leading-relaxed pl-1 ${isTeluguText(slideItem.primaryText) ? 'font-telugu' : 'font-sans'}`}>
                       {slideItem.primaryText}
                     </div>
 
                     {/* Secondary translation if available */}
                     {slideItem.secondaryText && (
-                      <div className="mt-2.5 pt-2 border-t border-slate-800 text-xs text-sky-300/80 whitespace-pre-line leading-relaxed pl-1">
+                      <div className={`mt-2.5 pt-2 border-t border-slate-800 text-xs text-sky-300/80 whitespace-pre-line leading-relaxed pl-1 ${isTeluguText(slideItem.secondaryText) ? 'font-telugu' : ''}`}>
                         {slideItem.secondaryText}
                       </div>
                     )}

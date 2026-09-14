@@ -10,6 +10,7 @@ export const INITIAL_REGISTERED_USERS: RegisteredUser[] = [
     password: 'worship2026',
     churchName: 'Grace Community Church',
     role: 'Lead AV Director',
+    accountSlug: 'mosheravikampadu',
     createdAt: 1710000000000,
   },
   {
@@ -19,9 +20,17 @@ export const INITIAL_REGISTERED_USERS: RegisteredUser[] = [
     password: 'password123',
     churchName: 'Faith Fellowship Church',
     role: 'Worship Director',
+    accountSlug: 'faithchurch',
     createdAt: 1710000000000,
   },
 ];
+
+let usersBroadcastChannel: BroadcastChannel | null = null;
+try {
+  if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
+    usersBroadcastChannel = new BroadcastChannel('worship_users_channel');
+  }
+} catch (e) {}
 
 export function getRegisteredUsers(): RegisteredUser[] {
   try {
@@ -43,9 +52,29 @@ export function getRegisteredUsers(): RegisteredUser[] {
 export function saveRegisteredUsers(users: RegisteredUser[]): void {
   try {
     localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+    if (usersBroadcastChannel) {
+      usersBroadcastChannel.postMessage({ type: 'users_updated', users });
+    }
   } catch (e) {
     console.error('Failed to save registered users', e);
   }
+}
+
+// Fetch all registered users from the real-time server database
+export async function fetchRegisteredUsers(): Promise<RegisteredUser[]> {
+  try {
+    const res = await fetch('/api/auth/users');
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && Array.isArray(data.users)) {
+        saveRegisteredUsers(data.users);
+        return data.users;
+      }
+    }
+  } catch (err) {
+    console.warn('Could not fetch registered users from server, using local cache:', err);
+  }
+  return getRegisteredUsers();
 }
 
 export function findUserByEmail(email: string): RegisteredUser | undefined {
@@ -62,8 +91,10 @@ export interface AuthResult {
   errorType?: 'user_not_found' | 'wrong_password' | 'invalid_input' | 'user_already_exists';
 }
 
-export function loginUser(email: string, password: string): AuthResult {
-  const cleanEmail = email.trim();
+export async function loginUser(email: string, password: string): Promise<AuthResult> {
+  const cleanEmail = email.trim().toLowerCase();
+  const cleanPassword = password.trim();
+
   if (!cleanEmail) {
     return {
       success: false,
@@ -71,7 +102,7 @@ export function loginUser(email: string, password: string): AuthResult {
       errorType: 'invalid_input',
     };
   }
-  if (!password) {
+  if (!cleanPassword) {
     return {
       success: false,
       error: 'Please enter your password.',
@@ -79,6 +110,36 @@ export function loginUser(email: string, password: string): AuthResult {
     };
   }
 
+  // 1. Attempt Server-Side Login first (multi-device real-time authoritative)
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      // Sync local users list
+      fetchRegisteredUsers().catch(() => {});
+      return {
+        success: true,
+        user: data.user,
+        session: data.session,
+      };
+    } else {
+      return {
+        success: false,
+        error: data.error || 'Failed to sign in.',
+        errorType: data.errorType || 'user_not_found',
+      };
+    }
+  } catch (networkErr) {
+    console.warn('Network issue contacting server, falling back to local verification:', networkErr);
+  }
+
+  // 2. Fallback to cached local users if offline
   const user = findUserByEmail(cleanEmail);
   if (!user) {
     return {
@@ -88,7 +149,7 @@ export function loginUser(email: string, password: string): AuthResult {
     };
   }
 
-  if (user.password !== password) {
+  if (user.password !== cleanPassword) {
     return {
       success: false,
       error: `Incorrect password! The password you entered for "${cleanEmail}" is not correct. Please try again.`,
@@ -97,7 +158,7 @@ export function loginUser(email: string, password: string): AuthResult {
   }
 
   const username = user.name || cleanEmail.split('@')[0];
-  const accountSlug = cleanEmail
+  const accountSlug = user.accountSlug || cleanEmail
     .split('@')[0]
     .toLowerCase()
     .replace(/[^a-z0-9_-]/g, '') || 'worship-main';
@@ -118,15 +179,17 @@ export function loginUser(email: string, password: string): AuthResult {
   };
 }
 
-export function registerUser(params: {
+export async function registerUser(params: {
   name: string;
   email: string;
   password: string;
   churchName?: string;
-}): AuthResult {
+  role?: string;
+}): Promise<AuthResult> {
   const cleanEmail = params.email.trim().toLowerCase();
   const cleanName = params.name.trim();
   const cleanChurch = (params.churchName || '').trim() || `${cleanName}'s Ministry`;
+  const cleanRole = params.role || 'Lead AV Director';
   const password = params.password;
 
   if (!cleanName) {
@@ -153,6 +216,42 @@ export function registerUser(params: {
     };
   }
 
+  // 1. Attempt Server-Side Registration (broadcasts to all devices in real time)
+  try {
+    const response = await fetch('/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: cleanName,
+        email: cleanEmail,
+        password,
+        churchName: cleanChurch,
+        role: cleanRole,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (response.ok && data.success) {
+      // Sync local users list
+      fetchRegisteredUsers().catch(() => {});
+      return {
+        success: true,
+        user: data.user,
+        session: data.session,
+      };
+    } else {
+      return {
+        success: false,
+        error: data.error || 'Failed to register account.',
+        errorType: data.errorType || 'user_already_exists',
+      };
+    }
+  } catch (networkErr) {
+    console.warn('Network issue contacting server, falling back to local registration:', networkErr);
+  }
+
+  // 2. Fallback local registration if server unreachable
   const existing = findUserByEmail(cleanEmail);
   if (existing) {
     return {
@@ -162,24 +261,25 @@ export function registerUser(params: {
     };
   }
 
+  const accountSlug = cleanEmail
+    .split('@')[0]
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]/g, '') || 'worship-main';
+
   const newUser: RegisteredUser = {
     id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
     name: cleanName,
     email: cleanEmail,
     password,
     churchName: cleanChurch,
-    role: 'Lead AV Director',
+    role: cleanRole,
+    accountSlug,
     createdAt: Date.now(),
   };
 
   const users = getRegisteredUsers();
   const updated = [newUser, ...users];
   saveRegisteredUsers(updated);
-
-  const accountSlug = cleanEmail
-    .split('@')[0]
-    .toLowerCase()
-    .replace(/[^a-z0-9_-]/g, '') || 'worship-main';
 
   const session: UserSession = {
     churchName: newUser.churchName,

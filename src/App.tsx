@@ -7,6 +7,7 @@ import { LyricsTab } from './components/LyricsTab';
 import { MediaSettingsTab } from './components/MediaSettingsTab';
 import { DisplayView } from './components/DisplayView';
 import { StageDisplayView } from './components/StageDisplayView';
+import { DualDisplayView } from './components/DualDisplayView';
 import { SlideDisplay } from './components/SlideDisplay';
 import { LoginPage } from './components/LoginPage';
 import { SlideContent, UserSession } from './types';
@@ -31,6 +32,11 @@ export default function App() {
   // Check URL query parameters for standalone projector, stage, or dedicated lower-third displays
   const params = new URLSearchParams(window.location.search);
   const viewParam = params.get('view')?.toLowerCase();
+
+  // Simultaneous Dual Monitor URL (both Full Screen and Lower Third at same time)
+  if (viewParam === 'both' || viewParam === 'dual' || viewParam === 'split') {
+    return <DualDisplayView />;
+  }
 
   // Dedicated OBS Lower Third URL (100% transparent browser source)
   if (viewParam === 'lowerthird' || viewParam === 'lower-third' || viewParam === 'obs') {

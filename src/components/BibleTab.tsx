@@ -64,6 +64,9 @@ export const BibleTab: React.FC<BibleTabProps> = ({
     return ['John 3:16', 'Psalm 23:1', 'Romans 8:28', 'Philippians 4:13'];
   });
 
+  // Mobile step navigation for phone/tablet responsiveness ('book' | 'chapter_verse' | 'preview')
+  const [mobileStep, setMobileStep] = useState<'book' | 'chapter_verse' | 'preview'>('chapter_verse');
+
   // Filter books for Column 1
   const filteredBooks = useMemo(() => {
     return BIBLE_BOOKS_META.filter((b) => {
@@ -521,254 +524,301 @@ export const BibleTab: React.FC<BibleTabProps> = ({
       </div>
 
       {/* 2. MAIN WORKSPACE: VerseVIEW & BibleShow 3-Column Fast Grid Selector */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 p-3 sm:p-4 overflow-hidden">
-        {/* Column 1: BOOKS (Old & New Testament - 66 Books) (4 cols on lg) */}
-        <div className="lg:col-span-4 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg">
-          {/* Header & OT/NT Tabs */}
-          <div className="p-3 border-b border-slate-800 space-y-2 bg-slate-900">
-            <div className="flex items-center justify-between">
-              <span className="font-extrabold text-xs uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
-                <BookOpen className="w-3.5 h-3.5 text-sky-400" /> 1. Select Book
-              </span>
-              <span className="text-[10px] font-mono text-slate-500">66 Books</span>
-            </div>
+      <div className="flex-1 flex flex-col p-3 sm:p-4 overflow-hidden">
+        {/* Mobile & Tablet Step Navigator (Visible on < lg screens) */}
+        <div className="lg:hidden flex items-center p-1 bg-slate-950 rounded-xl border border-slate-800 mb-3 gap-1 text-xs shrink-0">
+          <button
+            type="button"
+            onClick={() => setMobileStep('book')}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition-all text-center truncate ${
+              mobileStep === 'book'
+                ? 'bg-sky-600 text-white shadow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            1. {selectedBook}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileStep('chapter_verse')}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition-all text-center truncate ${
+              mobileStep === 'chapter_verse'
+                ? 'bg-sky-600 text-white shadow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            2. Ch {selectedChapter} : V {selectedVerse}
+          </button>
+          <button
+            type="button"
+            onClick={() => setMobileStep('preview')}
+            className={`flex-1 py-1.5 px-2 rounded-lg font-bold transition-all text-center truncate ${
+              mobileStep === 'preview'
+                ? 'bg-rose-600 text-white shadow'
+                : 'text-slate-400 hover:text-white'
+            }`}
+          >
+            3. Passage &amp; Live
+          </button>
+        </div>
 
-            {/* OT / NT Filter Tabs */}
-            <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
-              <button
-                type="button"
-                onClick={() => setTestamentFilter('ALL')}
-                className={`py-1 rounded-lg transition-all ${
-                  testamentFilter === 'ALL'
-                    ? 'bg-sky-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                All (66)
-              </button>
-              <button
-                type="button"
-                onClick={() => setTestamentFilter('OT')}
-                className={`py-1 rounded-lg transition-all ${
-                  testamentFilter === 'OT'
-                    ? 'bg-sky-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                OT (39)
-              </button>
-              <button
-                type="button"
-                onClick={() => setTestamentFilter('NT')}
-                className={`py-1 rounded-lg transition-all ${
-                  testamentFilter === 'NT'
-                    ? 'bg-sky-600 text-white'
-                    : 'text-slate-400 hover:text-white'
-                }`}
-              >
-                NT (27)
-              </button>
-            </div>
+        <div className="flex-1 grid grid-cols-1 lg:grid-cols-12 gap-3 overflow-hidden">
+          {/* Column 1: BOOKS (Old & New Testament - 66 Books) (4 cols on lg) */}
+          <div className={`lg:col-span-4 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg ${
+            mobileStep === 'book' ? 'flex' : 'hidden lg:flex'
+          }`}>
+            {/* Header & OT/NT Tabs */}
+            <div className="p-3 border-b border-slate-800 space-y-2 bg-slate-900">
+              <div className="flex items-center justify-between">
+                <span className="font-extrabold text-xs uppercase tracking-wider text-slate-300 flex items-center gap-1.5">
+                  <BookOpen className="w-3.5 h-3.5 text-sky-400" /> 1. Select Book
+                </span>
+                <span className="text-[10px] font-mono text-slate-500">66 Books</span>
+              </div>
 
-            {/* Book search input */}
-            <div className="relative">
-              <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
-              <input
-                type="text"
-                value={bookSearch}
-                onChange={(e) => setBookSearch(e.target.value)}
-                placeholder="Filter books (e.g. John, Rom, Ps)..."
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
-              />
-            </div>
-          </div>
-
-          {/* Book List */}
-          <div className="flex-1 overflow-y-auto p-2 space-y-1">
-            {filteredBooks.map((book) => {
-              const isSelected = selectedBook === book.name;
-              return (
+              {/* OT / NT Filter Tabs */}
+              <div className="grid grid-cols-3 gap-1 bg-slate-950 p-1 rounded-xl border border-slate-800 text-xs font-bold">
                 <button
-                  key={book.name}
-                  id={`book-select-${book.name.toLowerCase().replace(/\s+/g, '-')}`}
                   type="button"
-                  onClick={() => {
-                    setSelectedBook(book.name);
-                    setSelectedChapter(1);
-                    setSelectedVerse(1);
-                    setQuickInput(`${book.name} 1:1`);
-                  }}
-                  className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs font-semibold transition-all ${
-                    isSelected
-                      ? 'bg-sky-600 text-white shadow-md font-bold'
-                      : 'bg-slate-950/60 border border-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
+                  onClick={() => setTestamentFilter('ALL')}
+                  className={`py-1 rounded-lg transition-all ${
+                    testamentFilter === 'ALL'
+                      ? 'bg-sky-600 text-white'
+                      : 'text-slate-400 hover:text-white'
                   }`}
                 >
-                  <span className="truncate">{book.name}</span>
-                  <span
-                    className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                  All (66)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTestamentFilter('OT')}
+                  className={`py-1 rounded-lg transition-all ${
+                    testamentFilter === 'OT'
+                      ? 'bg-sky-600 text-white'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  OT (39)
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTestamentFilter('NT')}
+                  className={`py-1 rounded-lg transition-all ${
+                    testamentFilter === 'NT'
+                      ? 'bg-sky-600 text-white'
+                      : 'text-slate-400 hover:text-white'
+                  }`}
+                >
+                  NT (27)
+                </button>
+              </div>
+
+              {/* Book search input */}
+              <div className="relative">
+                <Search className="w-3.5 h-3.5 text-slate-500 absolute left-2.5 top-2.5" />
+                <input
+                  type="text"
+                  value={bookSearch}
+                  onChange={(e) => setBookSearch(e.target.value)}
+                  placeholder="Filter books (e.g. John, Rom, Ps)..."
+                  className="w-full bg-slate-950 border border-slate-800 rounded-lg pl-8 pr-2 py-1.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:ring-1 focus:ring-sky-500"
+                />
+              </div>
+            </div>
+
+            {/* Book List */}
+            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+              {filteredBooks.map((book) => {
+                const isSelected = selectedBook === book.name;
+                return (
+                  <button
+                    key={book.name}
+                    id={`book-select-${book.name.toLowerCase().replace(/\s+/g, '-')}`}
+                    type="button"
+                    onClick={() => {
+                      setSelectedBook(book.name);
+                      setSelectedChapter(1);
+                      setSelectedVerse(1);
+                      setQuickInput(`${book.name} 1:1`);
+                      setMobileStep('chapter_verse');
+                    }}
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-xl text-left text-xs font-semibold transition-all ${
                       isSelected
-                        ? 'bg-sky-700 text-white'
-                        : 'bg-slate-900 text-slate-500'
+                        ? 'bg-sky-600 text-white shadow-md font-bold'
+                        : 'bg-slate-950/60 border border-slate-800/80 text-slate-300 hover:bg-slate-800 hover:text-white'
                     }`}
                   >
-                    {book.testament} · {book.chapters}ch
-                  </span>
-                </button>
-              );
-            })}
+                    <span className="truncate">{book.name}</span>
+                    <span
+                      className={`text-[10px] font-mono px-1.5 py-0.5 rounded ${
+                        isSelected
+                          ? 'bg-sky-700 text-white'
+                          : 'bg-slate-900 text-slate-500'
+                      }`}
+                    >
+                      {book.testament} · {book.chapters}ch
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
           </div>
-        </div>
 
-        {/* Column 2: CHAPTERS & VERSES NUMERICAL GRID (VerseView & BibleShow style) (4 cols on lg) */}
-        <div className="lg:col-span-4 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg">
-          {/* Active Book Title */}
-          <div className="p-3 border-b border-slate-800 bg-slate-900 flex items-center justify-between">
-            <div>
-              <span className="font-extrabold text-sm text-white">{selectedBook}</span>
-              <span className="text-xs text-slate-400 ml-2">
-                Chapter {selectedChapter} : Verse {selectedVerse}
+          {/* Column 2: CHAPTERS & VERSES NUMERICAL GRID (VerseView & BibleShow style) (4 cols on lg) */}
+          <div className={`lg:col-span-4 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg ${
+            mobileStep === 'chapter_verse' ? 'flex' : 'hidden lg:flex'
+          }`}>
+            {/* Active Book Title */}
+            <div className="p-3 border-b border-slate-800 bg-slate-900 flex items-center justify-between">
+              <div>
+                <span className="font-extrabold text-sm text-white">{selectedBook}</span>
+                <span className="text-xs text-slate-400 ml-2">
+                  Chapter {selectedChapter} : Verse {selectedVerse}
+                </span>
+              </div>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-950 border border-sky-800 text-sky-400">
+                1-Click Grid
               </span>
             </div>
-            <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-sky-950 border border-sky-800 text-sky-400">
-              1-Click Grid
-            </span>
-          </div>
 
-          <div className="flex-1 overflow-y-auto p-3 space-y-4">
-            {/* 2. Chapter Grid Selector */}
-            <div>
-              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
-                <span>2. Select Chapter ({chapterCount} total)</span>
+            <div className="flex-1 overflow-y-auto p-3 space-y-4">
+              {/* 2. Chapter Grid Selector */}
+              <div>
+                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
+                  <span>2. Select Chapter ({chapterCount} total)</span>
+                </div>
+                <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5 max-h-[160px] overflow-y-auto pr-1">
+                  {Array.from({ length: chapterCount }, (_, i) => i + 1).map((ch) => {
+                    const isChSelected = selectedChapter === ch;
+                    return (
+                      <button
+                        key={ch}
+                        type="button"
+                        onClick={() => {
+                          setSelectedChapter(ch);
+                          setSelectedVerse(1);
+                          setQuickInput(`${selectedBook} ${ch}:1`);
+                        }}
+                        className={`h-9 rounded-lg font-bold text-xs transition-all flex items-center justify-center ${
+                          isChSelected
+                            ? 'bg-amber-500 text-black shadow font-black ring-2 ring-amber-300'
+                            : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        {ch}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
-              <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5 max-h-[160px] overflow-y-auto pr-1">
-                {Array.from({ length: chapterCount }, (_, i) => i + 1).map((ch) => {
-                  const isChSelected = selectedChapter === ch;
-                  return (
-                    <button
-                      key={ch}
-                      type="button"
-                      onClick={() => {
-                        setSelectedChapter(ch);
-                        setSelectedVerse(1);
-                        setQuickInput(`${selectedBook} ${ch}:1`);
-                      }}
-                      className={`h-9 rounded-lg font-bold text-xs transition-all flex items-center justify-center ${
-                        isChSelected
-                          ? 'bg-amber-500 text-black shadow font-black ring-2 ring-amber-300'
-                          : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      {ch}
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
 
-            {/* 3. Verse Grid Selector */}
-            <div className="pt-2 border-t border-slate-800">
-              <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
-                <span>3. Select Verse (Ch {selectedChapter})</span>
-              </div>
-              <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5 max-h-[180px] overflow-y-auto pr-1">
-                {Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => {
-                  const isVSelected = selectedVerse === v;
-                  return (
-                    <button
-                      key={v}
-                      type="button"
-                      onClick={() => {
-                        setSelectedVerse(v);
-                        setQuickInput(`${selectedBook} ${selectedChapter}:${v}`);
-                      }}
-                      className={`h-9 rounded-lg font-bold text-xs transition-all flex items-center justify-center ${
-                        isVSelected
-                          ? 'bg-emerald-500 text-black shadow font-black ring-2 ring-emerald-300'
-                          : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
-                      }`}
-                    >
-                      {v}
-                    </button>
-                  );
-                })}
+              {/* 3. Verse Grid Selector */}
+              <div className="pt-2 border-t border-slate-800">
+                <div className="text-xs font-bold text-slate-300 uppercase tracking-wider mb-2 flex items-center justify-between">
+                  <span>3. Select Verse (Ch {selectedChapter})</span>
+                </div>
+                <div className="grid grid-cols-5 sm:grid-cols-6 gap-1.5 max-h-[180px] overflow-y-auto pr-1">
+                  {Array.from({ length: verseCount }, (_, i) => i + 1).map((v) => {
+                    const isVSelected = selectedVerse === v;
+                    return (
+                      <button
+                        key={v}
+                        type="button"
+                        onClick={() => {
+                          setSelectedVerse(v);
+                          setQuickInput(`${selectedBook} ${selectedChapter}:${v}`);
+                          setMobileStep('preview');
+                        }}
+                        className={`h-9 rounded-lg font-bold text-xs transition-all flex items-center justify-center ${
+                          isVSelected
+                            ? 'bg-emerald-500 text-black shadow font-black ring-2 ring-emerald-300'
+                            : 'bg-slate-950 border border-slate-800 text-slate-300 hover:bg-slate-800 hover:text-white'
+                        }`}
+                      >
+                        {v}
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
             </div>
           </div>
-        </div>
 
-        {/* Column 3: SELECTED SCRIPTURE LIVE PREVIEW & 1-CLICK BROADCAST (4 cols on lg) */}
-        <div className="lg:col-span-4 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg p-4 space-y-4">
-          <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-            <div>
-              <h3 className="font-extrabold text-base text-white">
-                {activeVerseItem.reference}
-              </h3>
-              {activeVerseItem.topic && (
-                <p className="text-xs text-sky-400 font-medium mt-0.5">
-                  {activeVerseItem.topic}
-                </p>
+          {/* Column 3: SELECTED SCRIPTURE LIVE PREVIEW & 1-CLICK BROADCAST (4 cols on lg) */}
+          <div className={`lg:col-span-4 bg-slate-900/90 rounded-2xl border border-slate-800 flex flex-col overflow-hidden shadow-lg p-4 space-y-4 ${
+            mobileStep === 'preview' ? 'flex' : 'hidden lg:flex'
+          }`}>
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div>
+                <h3 className="font-extrabold text-base text-white">
+                  {activeVerseItem.reference}
+                </h3>
+                {activeVerseItem.topic && (
+                  <p className="text-xs text-sky-400 font-medium mt-0.5">
+                    {activeVerseItem.topic}
+                  </p>
+                )}
+              </div>
+
+              {state.currentSlide?.reference === activeVerseItem.reference && (
+                <span className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse">
+                  <span className="w-2 h-2 rounded-full bg-rose-500" /> LIVE NOW
+                </span>
               )}
             </div>
 
-            {state.currentSlide?.reference === activeVerseItem.reference && (
-              <span className="flex items-center gap-1 text-[11px] font-bold px-2.5 py-1 rounded-full bg-rose-500/20 text-rose-400 border border-rose-500/30 animate-pulse">
-                <span className="w-2 h-2 rounded-full bg-rose-500" /> LIVE NOW
-              </span>
-            )}
-          </div>
-
-          {/* Scripture Text Box (Primary Translation) */}
-          <div className="flex-1 overflow-y-auto space-y-3 pr-1">
-            <div className="bg-slate-950 rounded-xl p-3.5 border border-slate-800 space-y-1.5">
-              <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase">
-                <span>{BIBLE_LANGUAGES.find((l) => l.id === primaryLang)?.name}</span>
-                <span className="text-sky-400">Primary</span>
-              </div>
-              <p className="text-sm sm:text-base text-slate-100 font-medium leading-relaxed">
-                {activeVerseItem.translations[primaryLang] ||
-                  activeVerseItem.translations['en-kjv'] ||
-                  `Scripture reading from ${activeVerseItem.reference}.`}
-              </p>
-            </div>
-
-            {/* Parallel Translation Box if enabled (VerseVIEW core feature) */}
-            {enableParallel && (
+            {/* Scripture Text Box (Primary Translation) */}
+            <div className="flex-1 overflow-y-auto space-y-3 pr-1">
               <div className="bg-slate-950 rounded-xl p-3.5 border border-slate-800 space-y-1.5">
                 <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase">
-                  <span>{BIBLE_LANGUAGES.find((l) => l.id === secondaryLang)?.name}</span>
-                  <span className="text-amber-400">Parallel</span>
+                  <span>{BIBLE_LANGUAGES.find((l) => l.id === primaryLang)?.name}</span>
+                  <span className="text-sky-400">Primary</span>
                 </div>
-                <p className="text-sm text-slate-300 font-medium leading-relaxed">
-                  {activeVerseItem.translations[secondaryLang] ||
-                    activeVerseItem.translations['te-sv'] ||
-                    `${activeVerseItem.reference} సమాంతర లేఖనము.`}
+                <p className={`text-sm sm:text-base text-slate-100 font-medium leading-relaxed ${primaryLang === 'te-sv' ? 'font-telugu' : ''}`}>
+                  {activeVerseItem.translations[primaryLang] ||
+                    activeVerseItem.translations['en-kjv'] ||
+                    `Scripture reading from ${activeVerseItem.reference}.`}
                 </p>
               </div>
-            )}
-          </div>
 
-          {/* Action Buttons: Go Live & Queue Next */}
-          <div className="pt-2 border-t border-slate-800 space-y-2">
-            <button
-              id="active-verse-golive-btn"
-              type="button"
-              onClick={() => handleGoLiveVerse(activeVerseItem)}
-              className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 transition-all"
-            >
-              <Play className="w-4 h-4 fill-current" />
-              <span>Project Live on Screen</span>
-            </button>
+              {/* Parallel Translation Box if enabled (VerseVIEW core feature) */}
+              {enableParallel && (
+                <div className="bg-slate-950 rounded-xl p-3.5 border border-slate-800 space-y-1.5">
+                  <div className="flex items-center justify-between text-[11px] font-bold text-slate-400 uppercase">
+                    <span>{BIBLE_LANGUAGES.find((l) => l.id === secondaryLang)?.name}</span>
+                    <span className="text-amber-400">Parallel</span>
+                  </div>
+                  <p className={`text-sm text-slate-300 font-medium leading-relaxed ${secondaryLang === 'te-sv' ? 'font-telugu' : ''}`}>
+                    {activeVerseItem.translations[secondaryLang] ||
+                      activeVerseItem.translations['te-sv'] ||
+                      `${activeVerseItem.reference} సమాంతర లేఖనము.`}
+                  </p>
+                </div>
+              )}
+            </div>
 
-            <button
-              id="active-verse-preview-btn"
-              type="button"
-              onClick={() => handleSetNextVerse(activeVerseItem)}
-              className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition-all"
-            >
-              <Eye className="w-3.5 h-3.5 text-amber-400" />
-              <span>Queue as Next Slide (Preview)</span>
-            </button>
+            {/* Action Buttons: Go Live & Queue Next */}
+            <div className="pt-2 border-t border-slate-800 space-y-2">
+              <button
+                id="active-verse-golive-btn"
+                type="button"
+                onClick={() => handleGoLiveVerse(activeVerseItem)}
+                className="w-full py-3 px-4 rounded-xl bg-gradient-to-r from-rose-600 to-red-600 hover:from-rose-500 hover:to-red-500 text-white font-extrabold text-sm flex items-center justify-center gap-2 shadow-lg shadow-rose-600/30 transition-all"
+              >
+                <Play className="w-4 h-4 fill-current" />
+                <span>Project Live on Screen</span>
+              </button>
+
+              <button
+                id="active-verse-preview-btn"
+                type="button"
+                onClick={() => handleSetNextVerse(activeVerseItem)}
+                className="w-full py-2.5 px-4 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-slate-200 font-bold text-xs flex items-center justify-center gap-2 transition-all"
+              >
+                <Eye className="w-3.5 h-3.5 text-amber-400" />
+                <span>Queue as Next Slide (Preview)</span>
+              </button>
+            </div>
           </div>
         </div>
       </div>

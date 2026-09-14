@@ -1,6 +1,7 @@
 import express from 'express';
 import http from 'http';
 import path from 'path';
+import fs from 'fs';
 import dotenv from 'dotenv';
 import { WebSocketServer, WebSocket } from 'ws';
 import { createServer as createViteServer } from 'vite';
@@ -12,13 +13,128 @@ const PORT = 3000;
 
 app.use(express.json());
 
+// Persistent Data Paths
+const DATA_DIR = path.join(process.cwd(), 'data');
+const USERS_FILE = path.join(DATA_DIR, 'registered_users.json');
+const STATES_FILE = path.join(DATA_DIR, 'account_states.json');
+
+function ensureDataDir() {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+}
+
+// User Model Interface
+interface ServerUser {
+  id: string;
+  name: string;
+  email: string;
+  password: string;
+  churchName: string;
+  role: string;
+  accountSlug: string;
+  createdAt: number;
+}
+
+const INITIAL_USERS: ServerUser[] = [
+  {
+    id: 'user-moshe',
+    name: 'Moshe Ravi',
+    email: 'moshe.ravikampadu@gmail.com',
+    password: 'worship2026',
+    churchName: 'Grace Community Church',
+    role: 'Lead AV Director',
+    accountSlug: 'mosheravikampadu',
+    createdAt: 1710000000000,
+  },
+  {
+    id: 'user-faith-church',
+    name: 'Worship Leader',
+    email: 'leader@church.org',
+    password: 'password123',
+    churchName: 'Faith Fellowship Church',
+    role: 'Worship Director',
+    accountSlug: 'faithchurch',
+    createdAt: 1710000000000,
+  },
+];
+
+function loadUsers(): ServerUser[] {
+  ensureDataDir();
+  try {
+    if (fs.existsSync(USERS_FILE)) {
+      const data = fs.readFileSync(USERS_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed;
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load registered users from disk:', e);
+  }
+  saveUsers(INITIAL_USERS);
+  return INITIAL_USERS;
+}
+
+function saveUsers(userList: ServerUser[]) {
+  ensureDataDir();
+  try {
+    fs.writeFileSync(USERS_FILE, JSON.stringify(userList, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to write registered users to disk:', e);
+  }
+}
+
+let registeredUsers: ServerUser[] = loadUsers();
+
+function getSlugFromEmail(email: string): string {
+  return (
+    email
+      .split('@')[0]
+      .toLowerCase()
+      .replace(/[^a-z0-9_-]/g, '') || 'worship-main'
+  );
+}
+
 // In-memory state store per account
 interface AccountStore {
   state: Record<string, any>;
   lastUpdated: number;
 }
 
-const accountsData = new Map<string, AccountStore>();
+function loadAccountStates(): Map<string, AccountStore> {
+  ensureDataDir();
+  const map = new Map<string, AccountStore>();
+  try {
+    if (fs.existsSync(STATES_FILE)) {
+      const data = fs.readFileSync(STATES_FILE, 'utf-8');
+      const parsed = JSON.parse(data);
+      if (parsed && typeof parsed === 'object') {
+        for (const [key, val] of Object.entries(parsed)) {
+          map.set(key, val as AccountStore);
+        }
+      }
+    }
+  } catch (e) {
+    console.error('Failed to load account states from disk:', e);
+  }
+  return map;
+}
+
+function saveAccountStates(map: Map<string, AccountStore>) {
+  ensureDataDir();
+  try {
+    const obj: Record<string, any> = {};
+    for (const [k, v] of map.entries()) {
+      obj[k] = v;
+    }
+    fs.writeFileSync(STATES_FILE, JSON.stringify(obj, null, 2), 'utf-8');
+  } catch (e) {
+    console.error('Failed to save account states to disk:', e);
+  }
+}
+
+const accountsData = loadAccountStates();
 
 function getInitialAccountState(account: string) {
   return {
@@ -77,6 +193,7 @@ function getAccountState(account: string) {
       state: getInitialAccountState(account),
       lastUpdated: Date.now(),
     });
+    saveAccountStates(accountsData);
   }
   return accountsData.get(account)!.state;
 }
@@ -93,12 +210,157 @@ function updateAccountState(account: string, updates: Record<string, any>) {
     state: updated,
     lastUpdated: Date.now(),
   });
+  saveAccountStates(accountsData);
   return updated;
 }
 
 // HTTP API routes
 app.get('/api/health', (req, res) => {
   res.json({ status: 'ok', timestamp: Date.now() });
+});
+
+// Auth Routes: Real-time multi-device account management
+app.get('/api/auth/users', (req, res) => {
+  res.json({
+    success: true,
+    users: getPublicUsersList(),
+  });
+});
+
+app.post('/api/auth/register', (req, res) => {
+  const { name, email, password, churchName, role } = req.body || {};
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanName = (name || '').trim();
+  const cleanChurch = (churchName || '').trim() || `${cleanName}'s Ministry`;
+  const cleanRole = (role || '').trim() || 'Lead AV Director';
+  const cleanPassword = String(password || '');
+
+  if (!cleanName) {
+    return res.status(400).json({
+      success: false,
+      error: 'Please enter your full name or operator name.',
+      errorType: 'invalid_input',
+    });
+  }
+
+  if (!cleanEmail || !cleanEmail.includes('@') || !cleanEmail.includes('.')) {
+    return res.status(400).json({
+      success: false,
+      error: 'Please provide a valid email address (e.g. name@church.org).',
+      errorType: 'invalid_input',
+    });
+  }
+
+  if (!cleanPassword || cleanPassword.length < 4) {
+    return res.status(400).json({
+      success: false,
+      error: 'Password must be at least 4 characters long.',
+      errorType: 'invalid_input',
+    });
+  }
+
+  const existing = registeredUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+  if (existing) {
+    return res.status(409).json({
+      success: false,
+      error: `An account with email "${cleanEmail}" already exists! Please click "Sign In" instead.`,
+      errorType: 'user_already_exists',
+    });
+  }
+
+  const accountSlug = getSlugFromEmail(cleanEmail);
+  const newUser: ServerUser = {
+    id: `user-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
+    name: cleanName,
+    email: cleanEmail,
+    password: cleanPassword,
+    churchName: cleanChurch,
+    role: cleanRole,
+    accountSlug,
+    createdAt: Date.now(),
+  };
+
+  registeredUsers = [newUser, ...registeredUsers];
+  saveUsers(registeredUsers);
+
+  // Initialize state for this account room if not present
+  getAccountState(accountSlug);
+
+  const session = {
+    churchName: newUser.churchName,
+    accountName: accountSlug,
+    operatorName: newUser.name,
+    role: newUser.role,
+    isLoggedIn: true,
+    loginTime: Date.now(),
+  };
+
+  // Broadcast to all connected clients across all devices in real time!
+  broadcastAll({
+    type: 'users_updated',
+    users: getPublicUsersList(),
+    newAccount: accountSlug,
+  });
+
+  res.json({
+    success: true,
+    user: newUser,
+    session,
+  });
+});
+
+app.post('/api/auth/login', (req, res) => {
+  const { email, password } = req.body || {};
+  const cleanEmail = (email || '').trim().toLowerCase();
+  const cleanPass = String(password || '');
+
+  if (!cleanEmail) {
+    return res.status(400).json({
+      success: false,
+      error: 'Please enter your email address.',
+      errorType: 'invalid_input',
+    });
+  }
+
+  if (!cleanPass) {
+    return res.status(400).json({
+      success: false,
+      error: 'Please enter your password.',
+      errorType: 'invalid_input',
+    });
+  }
+
+  const user = registeredUsers.find((u) => u.email.toLowerCase() === cleanEmail);
+  if (!user) {
+    return res.status(404).json({
+      success: false,
+      error: `User not found! No registered account exists for "${cleanEmail}". Please check your email or click Register to create a new account.`,
+      errorType: 'user_not_found',
+    });
+  }
+
+  if (user.password !== cleanPass) {
+    return res.status(401).json({
+      success: false,
+      error: `Incorrect password! The password you entered for "${cleanEmail}" is not correct. Please try again.`,
+      errorType: 'wrong_password',
+    });
+  }
+
+  const session = {
+    churchName: user.churchName,
+    accountName: user.accountSlug,
+    operatorName: user.name,
+    role: user.role,
+    isLoggedIn: true,
+    loginTime: Date.now(),
+  };
+
+  res.json({
+    success: true,
+    user,
+    session,
+  });
 });
 
 app.get('/api/state/:account', (req, res) => {
@@ -142,6 +404,33 @@ function getClientCount(account: string): number {
   return count;
 }
 
+function getPublicUsersList() {
+  return registeredUsers.map((u) => ({
+    id: u.id,
+    name: u.name,
+    email: u.email,
+    churchName: u.churchName,
+    role: u.role,
+    accountSlug: u.accountSlug,
+    createdAt: u.createdAt,
+    password: u.password,
+    onlineDevices: getClientCount(u.accountSlug),
+  }));
+}
+
+function broadcastAll(message: any) {
+  const payload = JSON.stringify(message);
+  for (const client of wss.clients) {
+    if (client.readyState === WebSocket.OPEN) {
+      try {
+        client.send(payload);
+      } catch (err) {
+        console.error('Failed to broadcast to client:', err);
+      }
+    }
+  }
+}
+
 function broadcastToAccount(account: string, message: any, excludeWs?: WebSocket) {
   const payload = JSON.stringify(message);
   for (const [ws, meta] of socketMeta.entries()) {
@@ -156,11 +445,24 @@ function broadcastToAccount(account: string, message: any, excludeWs?: WebSocket
 }
 
 wss.on('connection', (ws) => {
+  // Send current registered users list immediately upon connection
+  try {
+    ws.send(JSON.stringify({
+      type: 'users_updated',
+      users: getPublicUsersList(),
+    }));
+  } catch (err) {}
+
   ws.on('message', (rawData) => {
     try {
       const data = JSON.parse(rawData.toString());
       
-      if (data.type === 'join') {
+      if (data.type === 'get_users') {
+        ws.send(JSON.stringify({
+          type: 'users_updated',
+          users: getPublicUsersList(),
+        }));
+      } else if (data.type === 'join') {
         const account = (data.account || 'worship-main').trim().toLowerCase();
         const clientType = data.clientType || 'operator';
         socketMeta.set(ws, { account, clientType });
@@ -181,6 +483,12 @@ wss.on('connection', (ws) => {
         broadcastToAccount(account, {
           type: 'count_update',
           count,
+        });
+
+        // Broadcast user list with updated onlineDevices count
+        broadcastAll({
+          type: 'users_updated',
+          users: getPublicUsersList(),
         });
       } else if (data.type === 'update_state') {
         const meta = socketMeta.get(ws);
@@ -212,6 +520,10 @@ wss.on('connection', (ws) => {
       broadcastToAccount(meta.account, {
         type: 'count_update',
         count,
+      });
+      broadcastAll({
+        type: 'users_updated',
+        users: getPublicUsersList(),
       });
     }
   });

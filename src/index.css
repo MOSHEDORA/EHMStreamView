@@ -1,1 +1,9 @@
 @import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Ramabhadra&display=swap');
+
+/* Telugu Default Font: Ramabhadra */
+.font-telugu,
+[lang="te"],
+:lang(te) {
+  font-family: 'Ramabhadra', 'Gautami', 'Vani', sans-serif !important;
+}

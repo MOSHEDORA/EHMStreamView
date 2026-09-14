@@ -28,7 +28,8 @@ export const OutputUrlsModal: React.FC<OutputUrlsModalProps> = ({
 
   const origin = window.location.origin;
   const lowerThirdUrl = `${origin}/?view=lowerthird&account=${encodeURIComponent(account)}`;
-  const projectorUrl = `${origin}/?view=display&account=${encodeURIComponent(account)}`;
+  const projectorUrl = `${origin}/?view=fullscreen&account=${encodeURIComponent(account)}`;
+  const dualUrl = `${origin}/?view=both&account=${encodeURIComponent(account)}`;
   const stageUrl = `${origin}/?view=stage&account=${encodeURIComponent(account)}`;
 
   const handleCopy = (url: string, key: string) => {
@@ -37,9 +38,14 @@ export const OutputUrlsModal: React.FC<OutputUrlsModalProps> = ({
     setTimeout(() => setCopiedKey(null), 2500);
   };
 
+  const handleLaunchBothInTabs = () => {
+    window.open(projectorUrl, '_blank');
+    window.open(lowerThirdUrl, '_blank');
+  };
+
   return (
     <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in duration-200">
+      <div className="bg-slate-900 border border-slate-700/80 rounded-2xl max-w-xl w-full p-6 shadow-2xl space-y-5 animate-in fade-in duration-200 max-h-[92vh] overflow-y-auto">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-800 pb-3">
           <div className="flex items-center gap-2.5">
@@ -49,7 +55,7 @@ export const OutputUrlsModal: React.FC<OutputUrlsModalProps> = ({
             <div>
               <h3 className="font-bold text-base text-white">Broadcast &amp; Output URLs</h3>
               <p className="text-xs text-slate-400">
-                Independent screen feeds for Sanctuary, OBS Stream, &amp; Stage
+                Run both Full Screen &amp; Lower Third simultaneously on different URLs
               </p>
             </div>
           </div>
@@ -60,6 +66,37 @@ export const OutputUrlsModal: React.FC<OutputUrlsModalProps> = ({
           >
             <X className="w-5 h-5" />
           </button>
+        </div>
+
+        {/* Quick 1-Click Launch Both */}
+        <div className="p-3.5 rounded-xl bg-gradient-to-r from-sky-950/60 to-emerald-950/60 border border-sky-600/40 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div>
+            <span className="text-xs font-bold text-white flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              Simultaneous Multi-Screen Broadcast
+            </span>
+            <p className="text-[11px] text-slate-300">
+              Open both outputs in 2 separate windows or use the Dual URL.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <button
+              type="button"
+              onClick={handleLaunchBothInTabs}
+              className="flex-1 sm:flex-none px-3.5 py-1.5 rounded-lg bg-gradient-to-r from-sky-500 to-emerald-500 hover:from-sky-400 hover:to-emerald-400 text-white font-extrabold text-xs shadow-md shadow-emerald-500/20 flex items-center justify-center gap-1.5"
+            >
+              <ExternalLink className="w-3.5 h-3.5" />
+              <span>Open Both (2 Tabs)</span>
+            </button>
+            <a
+              href={dualUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1 sm:flex-none px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold flex items-center justify-center gap-1"
+            >
+              <span>Dual Split URL</span>
+            </a>
+          </div>
         </div>
 
         {/* Output Cards */}
@@ -169,7 +206,57 @@ export const OutputUrlsModal: React.FC<OutputUrlsModalProps> = ({
             </div>
           </div>
 
-          {/* 3. STAGE / CONFIDENCE DISPLAY URL */}
+          {/* 3. DUAL SIMULTANEOUS MONITOR URL (Both at same time) */}
+          <div className="p-3.5 rounded-xl bg-purple-950/30 border border-purple-500/40 space-y-2">
+            <div className="flex items-center justify-between">
+              <h4 className="font-bold text-xs text-purple-300 flex items-center gap-1.5">
+                <Sparkles className="w-4 h-4 text-purple-400" />
+                Dual Split Output Monitor (Both at Same Time)
+              </h4>
+              <span className="text-[10px] font-bold px-2 py-0.5 rounded bg-purple-900/60 border border-purple-700 text-purple-200">
+                Split Screen Feed
+              </span>
+            </div>
+            <p className="text-[11px] text-slate-300">
+              Displays both Sanctuary Projector and OBS Lower Third synchronized in a single monitor view.
+            </p>
+            <div className="flex items-center gap-2 bg-slate-900 p-2 rounded-lg border border-slate-800">
+              <input
+                type="text"
+                readOnly
+                value={dualUrl}
+                className="flex-1 bg-transparent text-xs text-slate-300 font-mono focus:outline-none truncate"
+              />
+              <button
+                type="button"
+                onClick={() => handleCopy(dualUrl, 'dual')}
+                className="px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-semibold flex items-center gap-1.5 transition-colors"
+              >
+                {copiedKey === 'dual' ? (
+                  <>
+                    <Check className="w-3.5 h-3.5 text-emerald-400" />
+                    <span>Copied!</span>
+                  </>
+                ) : (
+                  <>
+                    <Copy className="w-3.5 h-3.5" />
+                    <span>Copy URL</span>
+                  </>
+                )}
+              </button>
+              <a
+                href={dualUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white transition-colors"
+                title="Open in new window"
+              >
+                <ExternalLink className="w-3.5 h-3.5" />
+              </a>
+            </div>
+          </div>
+
+          {/* 4. STAGE / CONFIDENCE DISPLAY URL */}
           <div className="p-3.5 rounded-xl bg-slate-950/60 border border-slate-800 space-y-2">
             <div className="flex items-center justify-between">
               <h4 className="font-bold text-xs text-amber-400 flex items-center gap-1.5">
