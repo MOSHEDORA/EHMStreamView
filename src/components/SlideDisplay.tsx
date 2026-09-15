@@ -139,13 +139,13 @@ export const SlideDisplay: React.FC<SlideDisplayProps> = ({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: theme.lowerThirdPosition === 'top' ? -20 : 20 }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
-                className={`w-full flex px-2 sm:px-4 md:px-6 lg:px-8 pb-4 md:pb-6 ${
+                className={`w-full max-h-[20vh] flex px-2 sm:px-4 md:px-6 lg:px-8 pb-4 md:pb-6 overflow-hidden ${
                   theme.lowerThirdPosition === 'top' ? 'pt-6 md:pt-8 items-start' : 'mt-auto items-end'
                 } justify-center`}
               >
                 {/* Lower Third Banner */}
                 <div
-                  className={`w-full transition-all duration-300 ${
+                    className={`w-full max-h-[calc(20vh-1rem)] overflow-hidden transition-all duration-300 ${
                     theme.lowerThirdStyle === 'pill'
                       ? 'rounded-2xl px-3 sm:px-6 md:px-8 py-4 sm:py-5 border border-white/15 shadow-2xl backdrop-blur-xl'
                       : theme.lowerThirdStyle === 'full_banner'
