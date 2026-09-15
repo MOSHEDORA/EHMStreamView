@@ -184,7 +184,7 @@ export const MediaSettingsTab: React.FC<MediaSettingsTabProps> = ({
                     Font Size ({theme.fontSize}px)
                   </label>
                   <div className="flex gap-1">
-                    {[32, 44, 56, 68].map((size) => (
+                    {[44, 68, 96, 120].map((size) => (
                       <button
                         key={size}
                         type="button"
@@ -204,7 +204,7 @@ export const MediaSettingsTab: React.FC<MediaSettingsTabProps> = ({
                   id="settings-font-size-slider"
                   type="range"
                   min="22"
-                  max="84"
+                  max="160"
                   step="2"
                   value={theme.fontSize}
                   onChange={(e) => onUpdateTheme({ fontSize: parseInt(e.target.value) })}

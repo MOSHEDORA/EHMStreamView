@@ -139,7 +139,7 @@ export const SlideDisplay: React.FC<SlideDisplayProps> = ({
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: theme.lowerThirdPosition === 'top' ? -20 : 20 }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
-                className={`w-full flex px-4 sm:px-8 md:px-12 lg:px-16 pb-6 md:pb-8 ${
+                className={`w-full flex px-2 sm:px-4 md:px-6 lg:px-8 pb-4 md:pb-6 ${
                   theme.lowerThirdPosition === 'top' ? 'pt-6 md:pt-8 items-start' : 'mt-auto items-end'
                 } justify-center`}
               >
@@ -147,14 +147,14 @@ export const SlideDisplay: React.FC<SlideDisplayProps> = ({
                 <div
                   className={`w-full transition-all duration-300 ${
                     theme.lowerThirdStyle === 'pill'
-                      ? 'rounded-2xl px-6 sm:px-10 md:px-12 py-4 sm:py-5 border border-white/15 shadow-2xl backdrop-blur-xl'
+                      ? 'rounded-2xl px-3 sm:px-6 md:px-8 py-4 sm:py-5 border border-white/15 shadow-2xl backdrop-blur-xl'
                       : theme.lowerThirdStyle === 'full_banner'
-                      ? 'rounded-none px-6 sm:px-12 py-5 border-l-8 border-white/20 shadow-2xl backdrop-blur-md'
+                      ? 'rounded-none px-3 sm:px-6 md:px-8 py-5 border-l-8 border-white/20 shadow-2xl backdrop-blur-md'
                       : theme.lowerThirdStyle === 'floating_box'
-                      ? 'rounded-xl px-6 sm:px-10 py-5 border border-white/10 shadow-xl backdrop-blur-md'
+                      ? 'rounded-xl px-3 sm:px-6 md:px-8 py-5 border border-white/10 shadow-xl backdrop-blur-md'
                       : theme.lowerThirdStyle === 'cinematic_bar'
-                      ? 'rounded-none px-6 sm:px-12 py-4 border-t border-b border-white/20 backdrop-blur-md'
-                      : 'rounded-xl px-6 sm:px-10 py-4 backdrop-blur-sm'
+                      ? 'rounded-none px-3 sm:px-6 md:px-8 py-4 border-t border-b border-white/20 backdrop-blur-md'
+                      : 'rounded-xl px-3 sm:px-6 md:px-8 py-4 backdrop-blur-sm'
                   }`}
                   style={{
                     backgroundColor:
@@ -211,7 +211,7 @@ export const SlideDisplay: React.FC<SlideDisplayProps> = ({
                 animate={{ opacity: 1, scale: 1 }}
                 exit={{ opacity: 0, scale: 1.02 }}
                 transition={{ duration: 0.35, ease: 'easeOut' }}
-                className="w-full h-full flex flex-col justify-center px-6 sm:px-12 md:px-16 lg:px-20 py-6 md:py-10 box-border"
+                className="w-full h-full flex flex-col justify-center px-2 sm:px-4 md:px-6 lg:px-8 py-4 md:py-8 box-border"
               >
                 {/* Header Tag for Scripture or Song */}
                 {(currentSlide.reference || currentSlide.subtitle) && (
